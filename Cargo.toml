@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-gui = ["dep:bevy"]
-default = ["gui"]
+gui = []
+bevy_gui = ["dep:bevy", "gui"]
+default = ["bevy_gui"]
 
 [dependencies]
 rapier2d = { version = "0.18.0", features = [

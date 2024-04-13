@@ -11,74 +11,76 @@ const BALL_RADIUS: f32 = 0.0427;
 const BALL_RESTITUTION: f32 = 0.7; // TODO: Mesure it
 const BALL_MASS: f32 = 0.008;
 
+mod game_state;
+
 #[cfg(feature = "gui")]
 mod gui;
 
 fn main() {
-    let mut rigid_body_set = RigidBodySet::new();
-    let mut collider_set = ColliderSet::new();
+    let mut bodies = RigidBodySet::new();
+    let mut colliders = ColliderSet::new();
 
     // Create the goals
     let goals = [
-        collider_set.insert(ColliderBuilder::segment(
+        colliders.insert(ColliderBuilder::segment(
             point![MARGIN, (FIELD_HEIGHT-GOAL_HEIGHT)/2.],
             point![MARGIN, (FIELD_HEIGHT+GOAL_HEIGHT)/2.]
         )),
-        collider_set.insert(ColliderBuilder::segment(
+        colliders.insert(ColliderBuilder::segment(
             point![FIELD_LENGTH+MARGIN, (FIELD_HEIGHT-GOAL_HEIGHT)/2.],
             point![FIELD_LENGTH+MARGIN, (FIELD_HEIGHT+GOAL_HEIGHT)/2.]
         ))
     ];
 
     // Create the ball
-    let ball = rigid_body_set.insert(
+    let ball = bodies.insert(
         RigidBodyBuilder::dynamic()
             .position(DEFAULT_BALL_POS.into())
     );
-    collider_set.insert_with_parent(
+    colliders.insert_with_parent(
         ColliderBuilder::ball(BALL_RADIUS)
             .restitution(BALL_RESTITUTION)
             .mass(BALL_MASS),
         ball,
-        &mut rigid_body_set
+        &mut bodies
     );
 
     /* Create other structures necessary for the simulation. */
     let gravity = vector![0.0, 0.0];
     let integration_parameters = IntegrationParameters::default();
     let mut physics_pipeline = PhysicsPipeline::new();
-    let mut island_manager = IslandManager::new();
+    let mut islands = IslandManager::new();
     let mut broad_phase = BroadPhase::new();
     let mut narrow_phase = NarrowPhase::new();
-    let mut impulse_joint_set = ImpulseJointSet::new();
-    let mut multibody_joint_set = MultibodyJointSet::new();
+    let mut impulse_joints = ImpulseJointSet::new();
+    let mut multibody_joints = MultibodyJointSet::new();
     let mut ccd_solver = CCDSolver::new();
     let mut query_pipeline = QueryPipeline::new();
     let physics_hooks = ();
-    let event_handler = ();
+    let events = ();
 
     /* Run the game loop, stepping the simulation once per frame. */
     for _ in 0..200 {
         physics_pipeline.step(
-        &gravity,
-        &integration_parameters,
-        &mut island_manager,
-        &mut broad_phase,
-        &mut narrow_phase,
-        &mut rigid_body_set,
-        &mut collider_set,
-        &mut impulse_joint_set,
-        &mut multibody_joint_set,
-        &mut ccd_solver,
-        Some(&mut query_pipeline),
-        &physics_hooks,
-        &event_handler,
+            &gravity,
+            &integration_parameters,
+            &mut islands,
+            &mut broad_phase,
+            &mut narrow_phase,
+            &mut bodies,
+            &mut colliders,
+            &mut impulse_joints,
+            &mut multibody_joints,
+            &mut ccd_solver,
+            Some(&mut query_pipeline),
+            &physics_hooks,
+            &events,
         );
 
-        let ball_body = &rigid_body_set[ball];
+        let ball_body = &bodies[ball];
         println!(
-        "Ball pos: {}",
-        ball_body.translation()
+            "Ball pos: {}",
+            ball_body.translation()
         );
     }
 }
