@@ -12,6 +12,7 @@ const BALL_RESTITUTION: f32 = 0.7; // TODO: Mesure it
 const BALL_MASS: f32 = 0.008;
 
 mod game_state;
+mod game_controller;
 
 #[cfg(feature = "gui")]
 mod gui;

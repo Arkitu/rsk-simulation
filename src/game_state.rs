@@ -88,7 +88,7 @@ pub struct Markers {
 }
 
 #[derive(Clone)]
-pub struct RefereeTeamsTeamRobot {
+pub struct RefereeTeamRobot {
     pub penalized: bool,
     pub penalized_remaining: Option<u32>,
     pub penalized_reson: Option<&'static str>,
@@ -97,23 +97,23 @@ pub struct RefereeTeamsTeamRobot {
 }
 
 #[derive(Clone)]
-pub struct RefereeTeamsTeamRobots {
-    pub one: RefereeTeamsTeamRobot,
-    pub two: RefereeTeamsTeamRobot
+pub struct RefereeTeamRobots {
+    pub one: RefereeTeamRobot,
+    pub two: RefereeTeamRobot
 }
 
 #[derive(Clone)]
-pub struct RefereeTeamsTeam {
+pub struct RefereeTeam {
     pub name: &'static str,
     pub score: usize,
     pub x_positive: bool,
-    pub robots: RefereeTeamsTeamRobots
+    pub robots: RefereeTeamRobots
 }
 
 #[derive(Clone)]
 pub struct RefereeTeams {
-    pub green: RefereeTeamsTeam,
-    pub blue: RefereeTeamsTeam
+    pub green: RefereeTeam,
+    pub blue: RefereeTeam
 }
 
 #[derive(Clone)]
