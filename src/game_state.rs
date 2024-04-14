@@ -73,13 +73,13 @@ use rapier2d::prelude::*;
 }
 */
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Pose {
     pub position: Point<f32>,
     pub orientation: f32
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Markers {
     pub green1: Pose,
     pub green2: Pose,
@@ -87,22 +87,22 @@ pub struct Markers {
     pub blue2: Pose
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RefereeTeamRobot {
     pub penalized: bool,
-    pub penalized_remaining: Option<u32>,
+    pub penalized_remaining: Option<usize>,
     pub penalized_reson: Option<&'static str>,
     pub preempted: bool,
     pub preemption_reasons: Vec<&'static str>
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RefereeTeamRobots {
     pub one: RefereeTeamRobot,
     pub two: RefereeTeamRobot
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RefereeTeam {
     pub name: &'static str,
     pub score: usize,
@@ -110,24 +110,24 @@ pub struct RefereeTeam {
     pub robots: RefereeTeamRobots
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RefereeTeams {
     pub green: RefereeTeam,
     pub blue: RefereeTeam
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Referee {
     pub game_is_running: bool,
     pub game_paused: bool,
     pub halftime_is_running: bool,
     pub timer: usize,
-    game_state_msg: &'static str,
+    pub game_state_msg: &'static str,
     pub teams: RefereeTeams,
     //pub referee_history_sliced: // TODO: Fill this to be complient with the official rsk game_controller
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GameState {
     pub ball: Point<f32>,
     pub markers: Markers,
