@@ -1,8 +1,7 @@
 use rapier2d::prelude::*;
-use crate::{game_state::{GameState, Markers, Pose, Referee, RefereeTeam, RefereeTeamRobot, RefereeTeamRobots, RefereeTeams}, DT};
-
-const FRAME_DURATION: usize = (DT*1000.) as usize; // in ms
-const PENALTY_DURATION: usize = 5000 / FRAME_DURATION; // in frames
+use crate::game_state::{GameState, Markers, Pose, Referee, RefereeTeam, RefereeTeamRobot, RefereeTeamRobots, RefereeTeams};
+use crate::simulation::Simulation;
+use crate::constants::*;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 enum GCState {
@@ -58,26 +57,25 @@ struct GCTeam {
     robots: [GCRobot; 2]
 }
 
-#[derive(Debug)]
-pub struct GC {
+pub struct GameController {
+    simu: Simulation,
     state: GCState,
-    ball: RigidBodyHandle,
     // [blue, green]
     teams: [GCTeam; 2],
     blue_team_positive: bool,
     timer: usize
 }
-impl GC {
+impl GameController {
     pub fn new(
-        ball: RigidBodyHandle,
-        robots: [RigidBodyHandle; 4],
         blue_team_name: &'static str,
         green_team_name: &'static str,
         blue_team_positive: bool
     ) -> Self {
+        let simu = Simulation::new();
+        let robots = simu.robots.clone();
         Self {
+            simu,
             state: GCState::Nothing,
-            ball,
             teams: [
                 GCTeam {
                     name: blue_team_name,
@@ -120,8 +118,13 @@ impl GC {
             timer: 0
         }
     }
-    pub fn get_game_state(&self, bodies: &RigidBodySet, current_frame: usize) -> GameState {
-        let ball = bodies[self.ball].translation();
+    pub fn update_simu(&mut self) {
+        self.simu.update();
+    }
+    pub fn get_game_state(&self) -> GameState {
+        let bodies = &self.simu.bodies;
+        let t = self.simu.t;
+        let ball = bodies[self.simu.ball].translation();
         let mut robots = self.teams.iter().flat_map(|t| t.robots.iter());
         let robots = [robots.next().unwrap(), robots.next().unwrap(), robots.next().unwrap(), robots.next().unwrap()];
         GameState {
@@ -153,14 +156,14 @@ impl GC {
                         robots: RefereeTeamRobots {
                             one: RefereeTeamRobot {
                                 penalized: self.teams[0].robots[0].penalty_reason.is_some(),
-                                penalized_remaining: self.teams[0].robots[0].penalty_reason.map(|_| (self.teams[0].robots[0].penalty_start + PENALTY_DURATION).saturating_sub(current_frame)*FRAME_DURATION/1000),
+                                penalized_remaining: self.teams[0].robots[0].penalty_reason.map(|_| (self.teams[0].robots[0].penalty_start + PENALTY_DURATION).saturating_sub(t)*FRAME_DURATION/1000),
                                 penalized_reson: self.teams[0].robots[0].penalty_reason.map(|pr| pr.into()),
                                 preempted: self.teams[0].robots[0].tasks.len() > 1,
                                 preemption_reasons: self.teams[0].robots[0].tasks.iter().map(|t| (*t).into()).collect()
                             },
                             two: RefereeTeamRobot {
                                 penalized: self.teams[0].robots[1].penalty_reason.is_some(),
-                                penalized_remaining: self.teams[0].robots[1].penalty_reason.map(|_| (self.teams[0].robots[1].penalty_start + PENALTY_DURATION).saturating_sub(current_frame)*FRAME_DURATION/1000),
+                                penalized_remaining: self.teams[0].robots[1].penalty_reason.map(|_| (self.teams[0].robots[1].penalty_start + PENALTY_DURATION).saturating_sub(t)*FRAME_DURATION/1000),
                                 penalized_reson: self.teams[0].robots[1].penalty_reason.map(|pr| pr.into()),
                                 preempted: self.teams[0].robots[1].tasks.len() > 1,
                                 preemption_reasons: self.teams[0].robots[1].tasks.iter().map(|t| (*t).into()).collect()
@@ -174,14 +177,14 @@ impl GC {
                         robots: RefereeTeamRobots {
                             one: RefereeTeamRobot {
                                 penalized: self.teams[1].robots[0].penalty_reason.is_some(),
-                                penalized_remaining: self.teams[1].robots[0].penalty_reason.map(|_| (self.teams[1].robots[0].penalty_start + PENALTY_DURATION).saturating_sub(current_frame)*FRAME_DURATION/1000),
+                                penalized_remaining: self.teams[1].robots[0].penalty_reason.map(|_| (self.teams[1].robots[0].penalty_start + PENALTY_DURATION).saturating_sub(t)*FRAME_DURATION/1000),
                                 penalized_reson: self.teams[1].robots[0].penalty_reason.map(|pr| pr.into()),
                                 preempted: self.teams[1].robots[0].tasks.len() > 1,
                                 preemption_reasons: self.teams[1].robots[0].tasks.iter().map(|t| (*t).into()).collect()
                             },
                             two: RefereeTeamRobot {
                                 penalized: self.teams[1].robots[1].penalty_reason.is_some(),
-                                penalized_remaining: self.teams[1].robots[1].penalty_reason.map(|_| (self.teams[1].robots[1].penalty_start + PENALTY_DURATION).saturating_sub(current_frame)*FRAME_DURATION/1000),
+                                penalized_remaining: self.teams[1].robots[1].penalty_reason.map(|_| (self.teams[1].robots[1].penalty_start + PENALTY_DURATION).saturating_sub(t)*FRAME_DURATION/1000),
                                 penalized_reson: self.teams[1].robots[1].penalty_reason.map(|pr| pr.into()),
                                 preempted: self.teams[1].robots[1].tasks.len() > 1,
                                 preemption_reasons: self.teams[1].robots[1].tasks.iter().map(|t| (*t).into()).collect()

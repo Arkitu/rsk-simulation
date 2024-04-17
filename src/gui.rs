@@ -1,26 +1,23 @@
-use crate::game_state::GameState;
+use log::info;
+
+use crate::{game_controller::GameController, game_state::GameState, simulation::Simulation};
 
 #[cfg(feature = "bevy_gui")]
 mod bevy;
 
+/// Trait for GUI implementations
 pub trait GUITrait {
-    fn new() -> Self;
-    fn update(&mut self, game_state: &GameState);
+    fn run(gc: GameController);
 }
 
-pub struct GUI {
-    #[cfg(feature = "bevy_gui")]
-    bevy: bevy::BevyGUI
-}
+#[cfg(feature = "bevy_gui")]
+pub use bevy::BevyGUI as GUI;
+
+#[cfg(not(any(feature = "bevy_gui")))]
+pub struct GUI;
+#[cfg(not(any(feature = "bevy_gui")))]
 impl GUITrait for GUI {
-    fn new() -> Self {
-        Self {
-            #[cfg(feature = "bevy_gui")]
-            bevy: bevy::BevyGUI::new()
-        }
-    }
-    fn update(&mut self, game_state: &GameState) {
-        #[cfg(feature = "bevy_gui")]
-        self.bevy.update(game_state);
+    fn run(gc: GameController) {
+        info!("No GUI feature enabled, skipping");
     }
 }

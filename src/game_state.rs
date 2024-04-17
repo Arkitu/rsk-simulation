@@ -127,6 +127,7 @@ pub struct Referee {
     //pub referee_history_sliced: // TODO: Fill this to be complient with the official rsk game_controller
 }
 
+/// Representation of the game given to the client
 #[derive(Clone, Debug)]
 pub struct GameState {
     pub ball: Point<f32>,
