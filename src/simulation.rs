@@ -111,7 +111,7 @@ impl Simulation {
             t: 0
         }
     }
-    pub fn update(&mut self) {
+    pub fn step(&mut self) {
         self.physics_pipeline.step(
             &self.gravity,
             &self.integration_parameters,

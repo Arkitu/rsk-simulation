@@ -1,6 +1,6 @@
 /// Bevy is only used to visualize the simulation
 use bevy::{prelude::*, render::camera::ScalingMode, sprite::{MaterialMesh2dBundle, Mesh2dHandle}, window::WindowResolution};
-use crate::game_controller::GameController;
+use crate::game_controller::{GCTrait, GC};
 use crate::game_state::GameState;
 use crate::constants::*;
 use crate::gui::GUITrait;
@@ -12,7 +12,7 @@ const FIELD_IMG: (f32, f32) = (9335., 7030.);
 struct BevyGameState (GameState);
 
 #[derive(Resource)]
-struct BevyGameController (GameController);
+struct BevyGC (GC);
 
 #[derive(Component)]
 struct Ball;
@@ -96,10 +96,10 @@ fn setup(
 }
 
 fn update_gs(
-    mut gc: ResMut<BevyGameController>,
+    mut gc: ResMut<BevyGC>,
     mut gs: ResMut<BevyGameState>
 ) {
-    gc.0.update_simu();
+    gc.0.step();
     gs.0 = gc.0.get_game_state();
 }
 
@@ -126,7 +126,7 @@ fn move_objects(
 
 pub struct BevyGUI;
 impl GUITrait for BevyGUI {
-    fn run(gc: GameController) {
+    fn run(gc: GC) {
         let gs = gc.get_game_state();
         App::new()
             .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -138,7 +138,7 @@ impl GUITrait for BevyGUI {
                 ..default()
             }))
             .insert_resource(Time::<Fixed>::from_seconds(DT as f64))
-            .insert_resource(BevyGameController(gc))
+            .insert_resource(BevyGC(gc))
             .insert_resource(BevyGameState(gs.clone()))
             .add_systems(Startup, setup)
             .add_systems(FixedUpdate, update_gs)

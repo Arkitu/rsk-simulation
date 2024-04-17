@@ -1,13 +1,13 @@
 use log::info;
 
-use crate::{game_controller::GameController, game_state::GameState, simulation::Simulation};
+use crate::{game_controller::GC, game_state::GameState, simulation::Simulation};
 
 #[cfg(feature = "bevy_gui")]
 mod bevy;
 
 /// Trait for GUI implementations
 pub trait GUITrait {
-    fn run(gc: GameController);
+    fn run(gc: GC);
 }
 
 #[cfg(feature = "bevy_gui")]

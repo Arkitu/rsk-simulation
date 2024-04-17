@@ -4,9 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
+# GUIs
 gui = []
 bevy_gui = ["dep:bevy", "gui"]
-default = ["bevy_gui"]
+
+# Game controllers
+standard_game_controller = []
+
+default = ["bevy_gui", "standard_game_controller"]
 
 [dependencies]
 rapier2d = { version = "0.18.0", features = [

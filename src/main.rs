@@ -1,5 +1,4 @@
-use game_controller::GameController;
-
+use game_controller::{GC, GCTrait};
 
 mod constants;
 mod simulation;
@@ -16,7 +15,7 @@ fn main() {
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     }
     
-    let gc = GameController::new(
+    let gc = GC::new(
         "",
         "",
         true
