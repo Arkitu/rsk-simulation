@@ -128,7 +128,9 @@ fn move_objects(
 ) {
     let gs = &gs.0;
 
-    *ball.single_mut() = Transform::from_xyz(gs.ball.x, gs.ball.y, 1.);
+    if let Some(ball_pos) = gs.ball {
+        *ball.single_mut() = Transform::from_xyz(ball_pos.x, ball_pos.y, 1.);
+    }
 
     for (r, mut pos) in robots.iter_mut() {
         let new_pos = match r {
@@ -160,7 +162,7 @@ impl GUITrait for BevyGUI {
             }))
             .insert_resource(Time::<Fixed>::from_seconds(DT as f64))
             .insert_resource(BevyGC(gc))
-            .insert_resource(BevyGameState(gs.clone()))
+            .insert_resource(BevyGameState(gs))
             .add_systems(Startup, setup)
             .add_systems(FixedUpdate, update_gs)
             .add_systems(Update, move_objects)

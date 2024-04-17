@@ -15,11 +15,17 @@ fn main() {
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     }
 
-    let gc = GC::new("", "", true);
-
     #[cfg(feature = "gui")]
     {
+        let gc = GC::new("", "", true);
         use gui::GUITrait;
         gui::GUI::run(gc);
+    }
+    #[cfg(not(any(feature = "gui")))]
+    {
+        let mut gc = GC::new("", "", true);
+        loop {
+            gc.step();
+        }
     }
 }

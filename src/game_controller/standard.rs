@@ -137,7 +137,7 @@ impl GCTrait for GC {
             robots.next().unwrap(),
         ];
         GameState {
-            ball: point![ball.x, ball.y],
+            ball: Some(point![ball.x, ball.y]),
             markers: Markers {
                 blue1: Pose {
                     position: point![

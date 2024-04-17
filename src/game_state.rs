@@ -131,7 +131,7 @@ pub struct Referee {
 /// Representation of the game given to the client
 #[derive(Clone, Debug)]
 pub struct GameState {
-    pub ball: Point<f32>,
+    pub ball: Option<Point<f32>>,
     pub markers: Markers,
     pub referee: Referee,
 }
