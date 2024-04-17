@@ -1,3 +1,4 @@
+#![cfg_attr(debug_assertions, allow(dead_code))] // TODO remove that later
 use rapier2d::prelude::*;
 
 // TODO: Not finished
@@ -76,7 +77,7 @@ use rapier2d::prelude::*;
 #[derive(Clone, Debug)]
 pub struct Pose {
     pub position: Point<f32>,
-    pub orientation: f32
+    pub orientation: f32,
 }
 
 #[derive(Clone, Debug)]
@@ -84,7 +85,7 @@ pub struct Markers {
     pub green1: Pose,
     pub green2: Pose,
     pub blue1: Pose,
-    pub blue2: Pose
+    pub blue2: Pose,
 }
 
 #[derive(Clone, Debug)]
@@ -93,13 +94,13 @@ pub struct RefereeTeamRobot {
     pub penalized_remaining: Option<usize>,
     pub penalized_reson: Option<&'static str>,
     pub preempted: bool,
-    pub preemption_reasons: Vec<&'static str>
+    pub preemption_reasons: Vec<&'static str>,
 }
 
 #[derive(Clone, Debug)]
 pub struct RefereeTeamRobots {
     pub one: RefereeTeamRobot,
-    pub two: RefereeTeamRobot
+    pub two: RefereeTeamRobot,
 }
 
 #[derive(Clone, Debug)]
@@ -107,13 +108,13 @@ pub struct RefereeTeam {
     pub name: &'static str,
     pub score: usize,
     pub x_positive: bool,
-    pub robots: RefereeTeamRobots
+    pub robots: RefereeTeamRobots,
 }
 
 #[derive(Clone, Debug)]
 pub struct RefereeTeams {
     pub green: RefereeTeam,
-    pub blue: RefereeTeam
+    pub blue: RefereeTeam,
 }
 
 #[derive(Clone, Debug)]
@@ -132,5 +133,5 @@ pub struct Referee {
 pub struct GameState {
     pub ball: Point<f32>,
     pub markers: Markers,
-    pub referee: Referee
+    pub referee: Referee,
 }

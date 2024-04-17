@@ -1,5 +1,5 @@
-use rapier2d::prelude::*;
 use crate::constants::*;
+use rapier2d::prelude::*;
 
 pub struct Simulation {
     pub bodies: RigidBodySet,
@@ -20,7 +20,7 @@ pub struct Simulation {
     physics_hooks: (),
     events: (),
     // Actual frame
-    pub t: usize
+    pub t: usize,
 }
 impl Simulation {
     pub fn new() -> Self {
@@ -30,60 +30,46 @@ impl Simulation {
         // Create the goals
         let goals = [
             colliders.insert(ColliderBuilder::segment(
-                point![MARGIN, MARGIN+((FIELD.1-GOAL_HEIGHT)/2.)],
-                point![MARGIN, MARGIN+((FIELD.1+GOAL_HEIGHT)/2.)]
+                point![MARGIN, MARGIN + ((FIELD.1 - GOAL_HEIGHT) / 2.)],
+                point![MARGIN, MARGIN + ((FIELD.1 + GOAL_HEIGHT) / 2.)],
             )),
             colliders.insert(ColliderBuilder::segment(
-                point![FIELD.0+MARGIN, MARGIN+((FIELD.1-GOAL_HEIGHT)/2.)],
-                point![FIELD.0+MARGIN, MARGIN+((FIELD.1+GOAL_HEIGHT)/2.)]
-            ))
+                point![FIELD.0 + MARGIN, MARGIN + ((FIELD.1 - GOAL_HEIGHT) / 2.)],
+                point![FIELD.0 + MARGIN, MARGIN + ((FIELD.1 + GOAL_HEIGHT) / 2.)],
+            )),
         ];
 
         // Create the ball
-        let ball = bodies.insert(
-            RigidBodyBuilder::dynamic()
-                .position(DEFAULT_BALL_POS.into())
-        );
+        let ball = bodies.insert(RigidBodyBuilder::dynamic().position(DEFAULT_BALL_POS.into()));
         colliders.insert_with_parent(
             ColliderBuilder::ball(BALL_RADIUS)
                 .restitution(BALL_RESTITUTION)
                 .mass(BALL_MASS),
             ball,
-            &mut bodies
+            &mut bodies,
         );
 
         // Create the robots
         let robots = [
-            bodies.insert(
-                RigidBodyBuilder::dynamic()
-                    .position(DEFAULT_BLUE1_POS.into())
-            ),
-            bodies.insert(
-                RigidBodyBuilder::dynamic()
-                    .position(DEFAULT_BLUE2_POS.into())
-            ),
-            bodies.insert(
-                RigidBodyBuilder::dynamic()
-                    .position(DEFAULT_GREEN1_POS.into())
-            ),
-            bodies.insert(
-                RigidBodyBuilder::dynamic()
-                    .position(DEFAULT_GREEN2_POS.into())
-            )
+            bodies.insert(RigidBodyBuilder::dynamic().position(DEFAULT_BLUE1_POS.into())),
+            bodies.insert(RigidBodyBuilder::dynamic().position(DEFAULT_BLUE2_POS.into())),
+            bodies.insert(RigidBodyBuilder::dynamic().position(DEFAULT_GREEN1_POS.into())),
+            bodies.insert(RigidBodyBuilder::dynamic().position(DEFAULT_GREEN2_POS.into())),
         ];
         for robot in robots.iter() {
             colliders.insert_with_parent(
                 // Collider is a regular hexagon with radius ROBOT_RADIUS
                 ColliderBuilder::convex_polyline(vec![
                     point![0., ROBOT_RADIUS],
-                    point![ROBOT_RADIUS*0.866, ROBOT_RADIUS*0.5],
-                    point![ROBOT_RADIUS*0.866, -ROBOT_RADIUS*0.5],
+                    point![ROBOT_RADIUS * 0.866, ROBOT_RADIUS * 0.5],
+                    point![ROBOT_RADIUS * 0.866, -ROBOT_RADIUS * 0.5],
                     point![0., -ROBOT_RADIUS],
-                    point![-ROBOT_RADIUS*0.866, -ROBOT_RADIUS*0.5],
-                    point![-ROBOT_RADIUS*0.866, ROBOT_RADIUS*0.5],
-                ]).unwrap(),
+                    point![-ROBOT_RADIUS * 0.866, -ROBOT_RADIUS * 0.5],
+                    point![-ROBOT_RADIUS * 0.866, ROBOT_RADIUS * 0.5],
+                ])
+                .unwrap(),
                 *robot,
-                &mut bodies
+                &mut bodies,
             );
         }
 
@@ -108,7 +94,7 @@ impl Simulation {
             query_pipeline: QueryPipeline::new(),
             physics_hooks: (),
             events: (),
-            t: 0
+            t: 0,
         }
     }
     pub fn step(&mut self) {
