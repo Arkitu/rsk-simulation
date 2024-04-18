@@ -150,29 +150,15 @@ fn move_objects(
 struct Dragging(Option<RigidBodyHandle>);
 
 fn select_dragging(
-    mut gc: ResMut<BevyGC>,
+    gc: Res<BevyGC>,
     mut dragging: ResMut<Dragging>,
     q_windows: Query<&Window, With<PrimaryWindow>>,
     buttons: Res<ButtonInput<MouseButton>>,
 ) {
     if buttons.just_pressed(MouseButton::Left) {
         if let Some(position) = q_windows.single().cursor_position() {
-            let simu = gc.0.get_simu_mut();
-            let filter = QueryFilter::default();
-
-            if let Some((handle, projection)) = simu.query_pipeline.project_point(
-                &simu.bodies,
-                &simu.colliders,
-                &cursor_to_simu(position),
-                true,
-                filter,
-            ) {
-                *dragging = Dragging(Some(if projection.is_inside {
-                    simu.colliders[handle].parent().unwrap()
-                } else {
-                    simu.ball
-                }));
-            }
+            let entity = gc.0.find_entity_at(cursor_to_simu(position));
+            *dragging = Dragging(Some(entity.unwrap_or(gc.0.get_ball_handle())))
         }
     } else if buttons.just_released(MouseButton::Left) {
         *dragging = Dragging(None);
@@ -188,7 +174,7 @@ fn update_dragging(
         Dragging(None) => (),
         Dragging(Some(d)) => {
             if let Some(position) = q_windows.single().cursor_position() {
-                gc.0.get_simu_mut().bodies[d].set_position(cursor_to_simu(position).into(), true);
+                gc.0.move_entity(d, cursor_to_simu(position));
             }
         }
     }

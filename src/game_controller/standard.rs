@@ -1,9 +1,9 @@
+use crate::constants::*;
 use crate::game_state::{
     GameState, Markers, Pose, Referee, RefereeTeam, RefereeTeamRobot, RefereeTeamRobots,
     RefereeTeams, Robot,
 };
 use crate::simulation::Simulation;
-use crate::{constants::*, simulation};
 use rapier2d::prelude::*;
 
 use super::GCTrait;
@@ -285,7 +285,13 @@ impl GCTrait for GC {
         };
         self.simu.bodies[self.teams[team].robots[robot].handle].set_position(pos.into(), true);
     }
-    fn get_simu_mut(&mut self) -> &mut simulation::Simulation {
-        &mut self.simu
+    fn find_entity_at(&self, pos: Point<f32>) -> Option<RigidBodyHandle> {
+        self.simu.find_entity_at(pos)
+    }
+    fn move_entity(&mut self, entity: RigidBodyHandle, pos: Point<f32>) {
+        self.simu.bodies[entity].set_position(pos.into(), true);
+    }
+    fn get_ball_handle(&self) -> RigidBodyHandle {
+        self.simu.ball
     }
 }
