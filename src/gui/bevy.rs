@@ -10,6 +10,7 @@ use bevy::{
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},
     window::WindowResolution,
 };
+use rapier2d::prelude::*;
 
 const WINDOW_SCALE: f32 = 400.0;
 const FIELD_IMG: (f32, f32) = (9335., 7030.);
@@ -145,19 +146,60 @@ fn move_objects(
     }
 }
 
-fn mouse_input(
+#[derive(Resource)]
+struct Dragging(Option<RigidBodyHandle>);
+
+fn select_dragging(
     mut gc: ResMut<BevyGC>,
+    mut dragging: ResMut<Dragging>,
     q_windows: Query<&Window, With<PrimaryWindow>>,
     buttons: Res<ButtonInput<MouseButton>>,
 ) {
     if buttons.just_pressed(MouseButton::Left) {
-        if let Some(mut position) = q_windows.single().cursor_position() {
-            position.y /= WINDOW_SCALE;
-            position.y = FIELD.0 - position.y;
-            position.x /= WINDOW_SCALE;
-            gc.0.teleport_ball(position.into());
+        if let Some(position) = q_windows.single().cursor_position() {
+            let simu = gc.0.get_simu_mut();
+            let filter = QueryFilter::default();
+
+            if let Some((handle, projection)) = simu.query_pipeline.project_point(
+                &simu.bodies,
+                &simu.colliders,
+                &cursor_to_simu(position),
+                true,
+                filter,
+            ) {
+                *dragging = Dragging(Some(if projection.is_inside {
+                    simu.colliders[handle].parent().unwrap()
+                } else {
+                    simu.ball
+                }));
+            }
+        }
+    } else if buttons.just_released(MouseButton::Left) {
+        *dragging = Dragging(None);
+    }
+}
+
+fn update_dragging(
+    mut gc: ResMut<BevyGC>,
+    q_windows: Query<&Window, With<PrimaryWindow>>,
+    dragging: Res<Dragging>,
+) {
+    match *dragging {
+        Dragging(None) => (),
+        Dragging(Some(d)) => {
+            if let Some(position) = q_windows.single().cursor_position() {
+                gc.0.get_simu_mut().bodies[d].set_position(cursor_to_simu(position).into(), true);
+            }
         }
     }
+}
+
+fn cursor_to_simu(pos: Vec2) -> Point<f32> {
+    let mut pos = pos;
+    pos.y /= WINDOW_SCALE;
+    pos.y = CARPET.1 - pos.y;
+    pos.x /= WINDOW_SCALE;
+    pos.into()
 }
 
 pub struct BevyGUI;
@@ -179,10 +221,12 @@ impl GUITrait for BevyGUI {
             .insert_resource(Time::<Fixed>::from_seconds(DT as f64))
             .insert_resource(BevyGC(gc))
             .insert_resource(BevyGameState(gs))
+            .insert_resource(Dragging(None))
             .add_systems(Startup, setup)
             .add_systems(FixedUpdate, update_gs)
             .add_systems(Update, move_objects)
-            .add_systems(Update, mouse_input)
+            .add_systems(Update, select_dragging)
+            .add_systems(Update, update_dragging)
             .run();
     }
 }

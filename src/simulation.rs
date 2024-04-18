@@ -16,7 +16,7 @@ pub struct Simulation {
     impulse_joints: ImpulseJointSet,
     multibody_joints: MultibodyJointSet,
     ccd_solver: CCDSolver,
-    query_pipeline: QueryPipeline,
+    pub query_pipeline: QueryPipeline,
     physics_hooks: (),
     events: (),
     // Actual frame

@@ -1,4 +1,7 @@
-use crate::game_state::GameState;
+use crate::{
+    game_state::{GameState, Robot},
+    simulation::Simulation,
+};
 
 #[cfg(feature = "standard_game_controller")]
 mod standard;
@@ -12,7 +15,9 @@ pub trait GCTrait {
     ) -> Self;
     fn step(&mut self);
     fn get_game_state(&self) -> GameState;
+    fn get_simu_mut(&mut self) -> &mut Simulation;
     fn teleport_ball(&mut self, pos: Point<f32>);
+    fn teleport_robot(&mut self, id: Robot, pos: Point<f32>);
 }
 
 #[cfg(feature = "standard_game_controller")]
