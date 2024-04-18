@@ -75,12 +75,14 @@ use rapier2d::prelude::*;
 */
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Pose {
     pub position: Point<f32>,
     pub orientation: f32,
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Markers {
     pub green1: Pose,
     pub green2: Pose,
@@ -89,47 +91,53 @@ pub struct Markers {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RefereeTeamRobot {
     pub penalized: bool,
     pub penalized_remaining: Option<usize>,
-    pub penalized_reson: Option<&'static str>,
+    pub penalized_reson: Option<String>,
     pub preempted: bool,
-    pub preemption_reasons: Vec<&'static str>,
+    pub preemption_reasons: Vec<String>,
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RefereeTeamRobots {
     pub one: RefereeTeamRobot,
     pub two: RefereeTeamRobot,
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RefereeTeam {
-    pub name: &'static str,
+    pub name: String,
     pub score: usize,
     pub x_positive: bool,
     pub robots: RefereeTeamRobots,
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RefereeTeams {
     pub green: RefereeTeam,
     pub blue: RefereeTeam,
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Referee {
     pub game_is_running: bool,
     pub game_paused: bool,
     pub halftime_is_running: bool,
     pub timer: usize,
-    pub game_state_msg: &'static str,
+    pub game_state_msg: String,
     pub teams: RefereeTeams,
     //pub referee_history_sliced: // TODO: Fill this to be complient with the official rsk game_controller
 }
 
 /// Representation of the game given to the client
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GameState {
     pub ball: Option<Point<f32>>,
     pub markers: Markers,

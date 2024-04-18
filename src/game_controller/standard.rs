@@ -15,11 +15,11 @@ enum GCState {
     GamePaused,
     Halftime,
 }
-impl From<GCState> for &'static str {
+impl From<GCState> for String {
     fn from(val: GCState) -> Self {
         match val {
-            GCState::Nothing => "Game is ready to start",
-            _ => "", // TODO
+            GCState::Nothing => "Game is ready to start".to_string(),
+            _ => "".to_string(), // TODO
         }
     }
 }
@@ -28,7 +28,7 @@ impl From<GCState> for &'static str {
 enum RobotTask {
     // TODO
 }
-impl From<RobotTask> for &'static str {
+impl From<RobotTask> for String {
     fn from(val: RobotTask) -> Self {
         match val {}
     }
@@ -38,7 +38,7 @@ impl From<RobotTask> for &'static str {
 enum PenaltyReason {
     // TODO
 }
-impl From<PenaltyReason> for &'static str {
+impl From<PenaltyReason> for String {
     fn from(val: PenaltyReason) -> Self {
         match val {}
     }
@@ -55,7 +55,7 @@ struct GCRobot {
 
 #[derive(Debug)]
 struct GCTeam {
-    name: &'static str,
+    name: String,
     score: usize,
     robots: [GCRobot; 2],
 }
@@ -71,8 +71,8 @@ pub struct GC {
 }
 impl GCTrait for GC {
     fn new(
-        blue_team_name: &'static str,
-        green_team_name: &'static str,
+        blue_team_name: String,
+        green_team_name: String,
         blue_team_positive: bool,
     ) -> Self {
         let simu = Simulation::new();
@@ -171,7 +171,7 @@ impl GCTrait for GC {
             referee: Referee {
                 teams: RefereeTeams {
                     blue: RefereeTeam {
-                        name: self.teams[0].name,
+                        name: self.teams[0].name.clone(),
                         x_positive: self.blue_team_positive,
                         score: self.teams[0].score,
                         robots: RefereeTeamRobots {
@@ -218,7 +218,7 @@ impl GCTrait for GC {
                         },
                     },
                     green: RefereeTeam {
-                        name: self.teams[1].name,
+                        name: self.teams[1].name.clone(),
                         x_positive: !self.blue_team_positive,
                         score: self.teams[1].score,
                         robots: RefereeTeamRobots {

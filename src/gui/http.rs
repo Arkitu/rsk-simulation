@@ -1,13 +1,28 @@
 use crate::game_controller::GC;
 use crate::gui::GUITrait;
 
+const WS_PORT: u16 = 1234;
+
 pub struct HttpGUI;
 impl GUITrait for HttpGUI {
     fn run(gc: GC) {
-        wasm_server_runner::main(
-            "./target/wasm32-unknown-unknown/debug/rsk-simulation.wasm".to_string(),
-        )
-        .unwrap();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let futures = [
+            runtime.spawn(async {
+                wasm_server_runner::main(
+                    "./target/wasm32-unknown-unknown/debug/rsk-simulation.wasm".to_string(),
+                )
+                .unwrap();
+            }),
+            runtime.spawn(async move {
+                // Websocket to send game state to the browser
+                let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", WS_PORT)).await.unwrap();
+                while let Ok((stream, _)) = listener.accept().await {
+                    
+                }
+            })
+        ];
+        
     }
 }
 

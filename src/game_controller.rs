@@ -6,8 +6,8 @@ use rapier2d::prelude::*;
 
 pub trait GCTrait {
     fn new(
-        blue_team_name: &'static str,
-        green_team_name: &'static str,
+        blue_team_name: String,
+        green_team_name: String,
         blue_team_positive: bool,
     ) -> Self;
     fn step(&mut self);

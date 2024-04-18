@@ -17,7 +17,7 @@ fn main() {
 
     #[cfg(feature = "gui")]
     {
-        let gc = GC::new("", "", true);
+        let gc = GC::new("".to_string(), "".to_string(), true);
         use gui::GUITrait;
         gui::GUI::run(gc);
     }
