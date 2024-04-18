@@ -1,9 +1,9 @@
-use game_controller::{GC, GCTrait};
+use game_controller::{GCTrait, GC};
 
 mod constants;
-mod simulation;
-mod game_state;
 mod game_controller;
+mod game_state;
+mod simulation;
 
 #[cfg(feature = "gui")]
 mod gui;
@@ -14,17 +14,18 @@ fn main() {
         console_log::init_with_level(log::Level::Debug).expect("error initializing log");
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     }
-    
-    let gc = GC::new(
-        "",
-        "",
-        true
-    );
 
     #[cfg(feature = "gui")]
     {
+        let gc = GC::new("", "", true);
         use gui::GUITrait;
         gui::GUI::run(gc);
     }
-    
+    #[cfg(not(any(feature = "gui")))]
+    {
+        let mut gc = GC::new("", "", true);
+        loop {
+            gc.step();
+        }
+    }
 }

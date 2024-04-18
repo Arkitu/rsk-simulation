@@ -1,6 +1,4 @@
-use log::info;
-
-use crate::{game_controller::GC, game_state::GameState, simulation::Simulation};
+use crate::game_controller::GC;
 
 #[cfg(feature = "bevy_gui")]
 mod bevy;
@@ -18,6 +16,7 @@ pub struct GUI;
 #[cfg(not(any(feature = "bevy_gui")))]
 impl GUITrait for GUI {
     fn run(gc: GameController) {
+        use log::info;
         info!("No GUI feature enabled, skipping");
     }
 }
