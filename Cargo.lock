@@ -2520,6 +2520,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ea4908d4f23254adda3daa60ffef0f1ac7b8c3e9a864cf3cc154b251908a2ef"
 dependencies = [
  "approx",
+ "glam",
  "matrixmultiply",
  "nalgebra-macros",
  "num-complex",
@@ -3149,6 +3150,7 @@ dependencies = [
  "console_error_panic_hook",
  "console_log",
  "log",
+ "nalgebra",
  "rapier2d",
  "wasm_thread",
 ]
