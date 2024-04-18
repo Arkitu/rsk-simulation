@@ -4,7 +4,10 @@ use crate::gui::GUITrait;
 pub struct HttpGUI;
 impl GUITrait for HttpGUI {
     fn run(gc: GC) {
-        wasm_server_runner::main("./target/wasm32-unknown-unknown/debug/rsk-simulation.wasm".to_string()).unwrap();
+        wasm_server_runner::main(
+            "./target/wasm32-unknown-unknown/debug/rsk-simulation.wasm".to_string(),
+        )
+        .unwrap();
     }
 }
 
@@ -27,7 +30,10 @@ mod wasm_server_runner {
             debug!("running wasm-bindgen...");
             let start = std::time::Instant::now();
             let mut bindgen = wasm_bindgen_cli_support::Bindgen::new();
-            bindgen.input_path(wasm_file).typescript(false).reference_types(true);
+            bindgen
+                .input_path(wasm_file)
+                .typescript(false)
+                .reference_types(true);
 
             if options.no_module {
                 bindgen.no_modules(true)?;
@@ -47,7 +53,12 @@ mod wasm_server_runner {
             let wasm = output.wasm_mut().emit_wasm();
             debug!("emitting wasm took {:?}", start.elapsed());
 
-            Ok(WasmBindgenOutput { js, wasm, snippets, local_modules })
+            Ok(WasmBindgenOutput {
+                js,
+                wasm,
+                snippets,
+                local_modules,
+            })
         }
     }
     mod server {
@@ -88,7 +99,10 @@ mod wasm_server_runner {
 
                 tracing::info!("re-using certificate from \"{}\"", path.display());
 
-                Ok(Certificate { certificate, private_key })
+                Ok(Certificate {
+                    certificate,
+                    private_key,
+                })
             }
 
             fn read(path: &Path) -> Result<Option<Vec<u8>>, ()> {
@@ -98,7 +112,10 @@ mod wasm_server_runner {
                         if error.kind() == ErrorKind::NotFound {
                             Ok(None)
                         } else {
-                            tracing::error!("error reading file from \"{}\": {error}", path.display());
+                            tracing::error!(
+                                "error reading file from \"{}\": {error}",
+                                path.display()
+                            );
                             Err(())
                         }
                     }
@@ -175,7 +192,9 @@ mod wasm_server_runner {
         use super::Result;
 
         fn generate_version() -> String {
-            std::iter::repeat_with(fastrand::alphanumeric).take(12).collect()
+            std::iter::repeat_with(fastrand::alphanumeric)
+                .take(12)
+                .collect()
         }
 
         pub struct Options {
@@ -188,7 +207,12 @@ mod wasm_server_runner {
         }
 
         pub async fn run_server(options: Options, output: WasmBindgenOutput) -> Result<()> {
-            let WasmBindgenOutput { js, wasm, snippets, local_modules } = output;
+            let WasmBindgenOutput {
+                js,
+                wasm,
+                snippets,
+                local_modules,
+            } = output;
 
             let middleware_stack = ServiceBuilder::new()
                 .layer(CompressionLayer::new())
@@ -222,19 +246,33 @@ mod wasm_server_runner {
                     .replace("// {{ MODULE }}", "");
             } else {
                 html = html
-                    .replace("// {{ MODULE }}", "import wasm_bindgen from './api/wasm.js';")
+                    .replace(
+                        "// {{ MODULE }}",
+                        "import wasm_bindgen from './api/wasm.js';",
+                    )
                     .replace("{{ NO_MODULE }}", "");
             };
 
-            let serve_dir =
-                HandleError::new(get_service(ServeDir::new(options.directory)), internal_server_error);
+            let serve_dir = HandleError::new(
+                get_service(ServeDir::new(options.directory)),
+                internal_server_error,
+            );
 
             let app = Router::new()
                 .route("/", get(move || async { Html(html) }))
-                .route("/api/wasm.js", get(|| async { WithContentType("application/javascript", js) }))
-                .route("/api/wasm.wasm", get(|| async { WithContentType("application/wasm", wasm) }))
+                .route(
+                    "/api/wasm.js",
+                    get(|| async { WithContentType("application/javascript", js) }),
+                )
+                .route(
+                    "/api/wasm.wasm",
+                    get(|| async { WithContentType("application/wasm", wasm) }),
+                )
                 .route("/api/version", get(move || async { version }))
-                .route("/ws", get(|ws: WebSocketUpgrade| async { ws.on_upgrade(handle_ws) }))
+                .route(
+                    "/ws",
+                    get(|ws: WebSocketUpgrade| async { ws.on_upgrade(handle_ws) }),
+                )
                 .route(
                     "/api/snippets/*rest",
                     get(|Path(path): Path<String>| async move {
@@ -252,15 +290,18 @@ mod wasm_server_runner {
 
             let mut address_string = options.address;
             if !address_string.contains(':') {
-                address_string +=
-                    &(":".to_owned() + &pick_port::pick_free_port(1334, 10).unwrap_or(1334).to_string());
+                address_string += &(":".to_owned()
+                    + &pick_port::pick_free_port(1334, 10)
+                        .unwrap_or(1334)
+                        .to_string());
             }
             let addr: SocketAddr = address_string.parse().expect("Couldn't parse address");
 
             if options.https {
                 let certificate = certificate::certificate()?;
                 let config =
-                    RustlsConfig::from_der(vec![certificate.certificate], certificate.private_key).await?;
+                    RustlsConfig::from_der(vec![certificate.certificate], certificate.private_key)
+                        .await?;
 
                 tracing::info!(target: "wasm_server_runner", "starting webserver at https://{}", addr);
                 axum_server_dual_protocol::bind_dual_protocol(addr, config)
@@ -269,7 +310,9 @@ mod wasm_server_runner {
                     .await?;
             } else {
                 tracing::info!(target: "wasm_server_runner", "starting webserver at http://{}", addr);
-                axum_server::bind(addr).serve(app.into_make_service()).await?;
+                axum_server::bind(addr)
+                    .serve(app.into_make_service())
+                    .await?;
             }
 
             Ok(())
@@ -284,7 +327,8 @@ mod wasm_server_runner {
                 return Ok(module.clone());
             };
 
-            let (snippet, inline_snippet_name) = path.split_once('/').ok_or("invalid snippet path")?;
+            let (snippet, inline_snippet_name) =
+                path.split_once('/').ok_or("invalid snippet path")?;
             let index = inline_snippet_name
                 .strip_prefix("inline")
                 .and_then(|path| path.strip_suffix(".js"))
@@ -347,17 +391,24 @@ mod wasm_server_runner {
         impl<T: IntoResponse> IntoResponse for WithContentType<T> {
             fn into_response(self) -> Response {
                 let mut response = self.1.into_response();
-                response.headers_mut().insert("Content-Type", HeaderValue::from_static(self.0));
+                response
+                    .headers_mut()
+                    .insert("Content-Type", HeaderValue::from_static(self.0));
                 response
             }
         }
 
         async fn internal_server_error(error: impl std::fmt::Display) -> impl IntoResponse {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Unhandled internal error: {}", error))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Unhandled internal error: {}", error),
+            )
         }
 
         mod pick_port {
-            use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6, TcpListener, ToSocketAddrs};
+            use std::net::{
+                Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6, TcpListener, ToSocketAddrs,
+            };
 
             fn test_bind_tcp<A: ToSocketAddrs>(addr: A) -> Option<u16> {
                 Some(TcpListener::bind(addr).ok()?.local_addr().ok()?.port())
@@ -397,7 +448,9 @@ mod wasm_server_runner {
         match std::env::var(name) {
             Ok(value) if ["true", "1", "yes"].contains(&value.as_str()) => Ok(true),
             Ok(value) if ["false", "0", "no"].contains(&value.as_str()) => Ok(false),
-            Ok(value) => Err(anyhow!("unexpected option {name}={value}, expected true,1 or false,0")),
+            Ok(value) => Err(anyhow!(
+                "unexpected option {name}={value}, expected true,1 or false,0"
+            )),
             Err(_) => Ok(default),
         }
     }
@@ -408,13 +461,17 @@ mod wasm_server_runner {
     pub fn main(wasm_file: String) -> Result<(), anyhow::Error> {
         let filter = EnvFilter::try_from_default_env()
             .unwrap_or_else(|_| EnvFilter::new("info,app=debug,tower_http=debug,walrus=error"));
-        tracing_subscriber::fmt::fmt().without_time().with_env_filter(filter).init();
+        tracing_subscriber::fmt::fmt()
+            .without_time()
+            .with_env_filter(filter)
+            .init();
 
         let title = std::env::var("CARGO_PKG_NAME").unwrap_or_else(|_| "".to_string());
         let address = option("WASM_SERVER_RUNNER_ADDRESS", "127.0.0.1");
         let directory = option("WASM_SERVER_RUNNER_DIRECTORY", ".");
-        let custom_index_html =
-            std::env::var("WASM_SERVER_RUNNER_CUSTOM_INDEX_HTML").ok().map(PathBuf::from);
+        let custom_index_html = std::env::var("WASM_SERVER_RUNNER_CUSTOM_INDEX_HTML")
+            .ok()
+            .map(PathBuf::from);
         let https = bool_option("WASM_SERVER_RUNNER_HTTPS", false)?;
         let no_module = bool_option("WASM_SERVER_RUNNER_NO_MODULE", false)?;
 
@@ -434,7 +491,10 @@ mod wasm_server_runner {
 
         let output = wasm_bindgen::generate(&options, &wasm_file)?;
 
-        info!("uncompressed wasm output is {} in size", pretty_size(output.wasm.len()));
+        info!(
+            "uncompressed wasm output is {} in size",
+            pretty_size(output.wasm.len())
+        );
 
         let rt = tokio::runtime::Runtime::new()?;
         rt.block_on(server::run_server(options, output))?;
