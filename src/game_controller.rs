@@ -2,6 +2,7 @@ use crate::game_state::GameState;
 
 #[cfg(feature = "standard_game_controller")]
 mod standard;
+use rapier2d::prelude::*;
 
 pub trait GCTrait {
     fn new(
@@ -11,6 +12,7 @@ pub trait GCTrait {
     ) -> Self;
     fn step(&mut self);
     fn get_game_state(&self) -> GameState;
+    fn teleport_ball(&mut self, pos: Point<f32>);
 }
 
 #[cfg(feature = "standard_game_controller")]

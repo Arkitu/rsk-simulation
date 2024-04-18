@@ -273,4 +273,7 @@ impl GCTrait for GC {
             },
         }
     }
+    fn teleport_ball(&mut self, pos: Point<f32>) {
+        self.simu.bodies[self.simu.ball].set_position(pos.into(), true);
+    }
 }

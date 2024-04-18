@@ -2,6 +2,7 @@ use crate::constants::*;
 use crate::game_controller::{GCTrait, GC};
 use crate::game_state::GameState;
 use crate::gui::GUITrait;
+use bevy::window::PrimaryWindow;
 /// Bevy is only used to visualize the simulation
 use bevy::{
     prelude::*,
@@ -144,6 +145,21 @@ fn move_objects(
     }
 }
 
+fn mouse_input(
+    mut gc: ResMut<BevyGC>,
+    q_windows: Query<&Window, With<PrimaryWindow>>,
+    buttons: Res<ButtonInput<MouseButton>>,
+) {
+    if buttons.just_pressed(MouseButton::Left) {
+        if let Some(mut position) = q_windows.single().cursor_position() {
+            position.y /= WINDOW_SCALE;
+            position.y = FIELD.0 - position.y;
+            position.x /= WINDOW_SCALE;
+            gc.0.teleport_ball(position.into());
+        }
+    }
+}
+
 pub struct BevyGUI;
 impl GUITrait for BevyGUI {
     fn run(gc: GC) {
@@ -166,6 +182,7 @@ impl GUITrait for BevyGUI {
             .add_systems(Startup, setup)
             .add_systems(FixedUpdate, update_gs)
             .add_systems(Update, move_objects)
+            .add_systems(Update, mouse_input)
             .run();
     }
 }
