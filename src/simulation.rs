@@ -115,4 +115,17 @@ impl Simulation {
         );
         self.t += 1;
     }
+    pub fn find_entity_at(&self, pos: Point<f32>) -> Option<RigidBodyHandle> {
+        let filter = QueryFilter::default();
+
+        if let Some((handle, projection)) =
+            self.query_pipeline
+                .project_point(&self.bodies, &self.colliders, &pos, true, filter)
+        {
+            if projection.is_inside {
+                return self.colliders[handle].parent();
+            }
+        }
+        None
+    }
 }

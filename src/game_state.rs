@@ -143,3 +143,10 @@ pub struct GameState {
     pub markers: Markers,
     pub referee: Referee,
 }
+
+pub enum Robot {
+    Blue1,
+    Blue2,
+    Green1,
+    Green2,
+}
