@@ -1,28 +1,49 @@
-use crate::game_controller::GC;
+use std::io::Write;
+use std::net::TcpListener;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
+
+use crate::constants::*;
+use crate::game_controller::{GCTrait, GC};
 use crate::gui::GUITrait;
 
 const WS_PORT: u16 = 1234;
 
 pub struct HttpGUI;
 impl GUITrait for HttpGUI {
-    fn run(gc: GC) {
-        let runtime = tokio::runtime::Runtime::new().unwrap();
-        let futures = [
-            runtime.spawn(async {
+    fn run(mut gc: GC) {
+        let threads = [
+            // Host the page and wasm file
+            thread::spawn(|| {
                 wasm_server_runner::main(
                     "./target/wasm32-unknown-unknown/debug/rsk-simulation.wasm".to_string(),
                 )
                 .unwrap();
             }),
-            runtime.spawn(async move {
-                // Websocket to send game state to the browser
-                let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", WS_PORT)).await.unwrap();
-                while let Ok((stream, _)) = listener.accept().await {
-                    
+            // Send game state to client via websocket (one client only)
+            thread::spawn(move || {
+                let listener = TcpListener::bind(format!("127.0.0.1:{}", WS_PORT)).unwrap();
+                let mut last_step = Instant::now();
+                while let Ok((mut stream, _)) = listener.accept() {
+                    loop {
+                        while last_step.elapsed() > Duration::from_millis(FRAME_DURATION as u64)/2 {
+                            gc.step();
+                            last_step += Duration::from_millis(FRAME_DURATION as u64);
+                        }
+                        let gs = gc.get_game_state();
+                        let gs_json = serde_json::to_string(&gs).unwrap();
+                        // Send game state to client but break if client disconnects
+                        if stream.write_all(gs_json.as_bytes()).is_err() {
+                            break;
+                        }
+                    }
                 }
             })
         ];
-        
+        for t in threads {
+            t.join().unwrap();
+        }
     }
 }
 
