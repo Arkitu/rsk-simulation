@@ -5,6 +5,9 @@ mod game_controller;
 mod game_state;
 mod simulation;
 
+#[cfg(feature = "http")]
+mod http;
+
 #[cfg(feature = "gui")]
 mod gui;
 

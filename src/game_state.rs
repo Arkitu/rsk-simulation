@@ -1,5 +1,9 @@
-#![cfg_attr(debug_assertions, allow(dead_code))] // TODO remove that later
+#![cfg_attr(debug_assertions, allow(dead_code))] use std::f32::consts::PI;
+
+// TODO remove that later
 use rapier2d::prelude::*;
+
+use crate::constants::*;
 
 // TODO: Not finished
 
@@ -84,10 +88,20 @@ pub struct Pose {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Markers {
-    pub green1: Pose,
-    pub green2: Pose,
     pub blue1: Pose,
     pub blue2: Pose,
+    pub green1: Pose,
+    pub green2: Pose,
+}
+impl Default for Markers {
+    fn default() -> Self {
+        Self {
+            blue1: Pose { position: DEFAULT_BLUE1_POS, orientation: 0. },
+            blue2: Pose { position: DEFAULT_BLUE2_POS, orientation: 0. },
+            green1: Pose { position: DEFAULT_GREEN1_POS, orientation: PI },
+            green2: Pose { position: DEFAULT_GREEN2_POS, orientation: PI }
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -95,12 +109,23 @@ pub struct Markers {
 pub struct RefereeTeamRobot {
     pub penalized: bool,
     pub penalized_remaining: Option<usize>,
-    pub penalized_reson: Option<String>,
+    pub penalized_reason: Option<String>,
     pub preempted: bool,
     pub preemption_reasons: Vec<String>,
 }
+impl Default for RefereeTeamRobot {
+    fn default() -> Self {
+        Self {
+            penalized: false,
+            penalized_remaining: None,
+            penalized_reason: None,
+            preempted: false,
+            preemption_reasons: Vec::new()
+        }
+    }
+}
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RefereeTeamRobots {
     pub one: RefereeTeamRobot,
@@ -115,8 +140,18 @@ pub struct RefereeTeam {
     pub x_positive: bool,
     pub robots: RefereeTeamRobots,
 }
+impl Default for RefereeTeam {
+    fn default() -> Self {
+        Self {
+            name: "".to_string(),
+            score: 0,
+            x_positive: true,
+            robots: RefereeTeamRobots::default()
+        }
+    }
+}
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RefereeTeams {
     pub green: RefereeTeam,
@@ -134,6 +169,18 @@ pub struct Referee {
     pub teams: RefereeTeams,
     //pub referee_history_sliced: // TODO: Fill this to be complient with the official rsk game_controller
 }
+impl Default for Referee {
+    fn default() -> Self {
+        Self {
+            game_is_running: false,
+            game_paused: false,
+            halftime_is_running: false,
+            timer: 0,
+            game_state_msg: "Game is ready to start".to_string(),
+            teams: RefereeTeams::default()
+        }
+    }
+}
 
 /// Representation of the game given to the client
 #[derive(Clone, Debug)]
@@ -143,7 +190,17 @@ pub struct GameState {
     pub markers: Markers,
     pub referee: Referee,
 }
+impl Default for GameState {
+    fn default() -> Self {
+        Self {
+            ball: None,
+            markers: Markers::default(),
+            referee: Referee::default()
+        }
+    }
+}
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Robot {
     Blue1,
     Blue2,

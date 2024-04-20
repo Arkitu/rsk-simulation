@@ -4,11 +4,14 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use log::warn;
+use websocket::Message;
+
 use crate::constants::*;
 use crate::game_controller::{GCTrait, GC};
+use crate::game_state::Robot;
 use crate::gui::GUITrait;
-
-const WS_PORT: u16 = 1234;
+use crate::http::{InitialMsg, ServerMsg, WS_PORT};
 
 pub struct HttpGUI;
 impl GUITrait for HttpGUI {
@@ -23,19 +26,47 @@ impl GUITrait for HttpGUI {
             }),
             // Send game state to client via websocket (one client only)
             thread::spawn(move || {
-                let listener = TcpListener::bind(format!("127.0.0.1:{}", WS_PORT)).unwrap();
+                // let listener = TcpListener::bind(format!("127.0.0.1:{}", WS_PORT)).unwrap();
+                // let mut last_step = Instant::now();
+                // while let Ok((mut stream, _)) = listener.accept() {
+                //     loop {
+                //         while last_step.elapsed() > Duration::from_millis(FRAME_DURATION as u64)/2 {
+                //             gc.step();
+                //             last_step += Duration::from_millis(FRAME_DURATION as u64);
+                //         }
+                //         let gs = gc.get_game_state();
+                //         let gs_json = serde_json::to_string(&gs).unwrap();
+                //         // Send game state to client but break if client disconnects
+                //         if stream.write_all(gs_json.as_bytes()).is_err() {
+                //             break;
+                //         }
+                //     }
+                // }
+                let listener = websocket::server::sync::Server::bind(format!("127.0.0.1:{}", WS_PORT)).unwrap();
                 let mut last_step = Instant::now();
-                while let Ok((mut stream, _)) = listener.accept() {
+                while let Ok(mut stream) = listener.accept() {
+                    let stream = stream.accept().unwrap();
+                    let initial_msg = InitialMsg {
+                        ball: gc.get_ball_handle(),
+                        blue1: gc.get_robot_handle(Robot::Blue1),
+                        blue2: gc.get_robot_handle(Robot::Blue2),
+                        green1: gc.get_robot_handle(Robot::Green1),
+                        green2: gc.get_robot_handle(Robot::Green2)
+                    };
+                    let initial_msg_bits = bitcode::serialize(&ServerMsg::Initial(initial_msg)).unwrap();
+                    if let Err(e) = stream.send_message(&Message::binary(initial_msg_bits)) {
+                        warn!("{}", e);
+                    }
                     loop {
                         while last_step.elapsed() > Duration::from_millis(FRAME_DURATION as u64)/2 {
                             gc.step();
                             last_step += Duration::from_millis(FRAME_DURATION as u64);
                         }
                         let gs = gc.get_game_state();
-                        let gs_json = serde_json::to_string(&gs).unwrap();
+                        let gs_bits = bitcode::serialize(&ServerMsg::GameState(gs)).unwrap();
                         // Send game state to client but break if client disconnects
-                        if stream.write_all(gs_json.as_bytes()).is_err() {
-                            break;
+                        if let Err(e) = stream.send_message(&Message::binary(gs_bits)) {
+                            warn!("{}", e);
                         }
                     }
                 }
