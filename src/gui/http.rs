@@ -74,10 +74,12 @@ impl GUITrait for HttpGUI {
                     });
                     let mut start = Instant::now();
                     loop {
+                        // Just for debug
                         if start.elapsed() > Duration::from_millis(5000) {
                             let ball = gc.get_ball_handle();
                             gc.simu.bodies[ball].set_linvel(vector![0.3, 0.05], true);
                         }
+                        // End of debug
                         while last_step.elapsed() > Duration::from_millis(FRAME_DURATION as u64)/2 {
                             gc.step();
                             last_step += Duration::from_millis(FRAME_DURATION as u64);
