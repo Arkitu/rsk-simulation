@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, cell::RefCell, rc::Rc, time::Duration};
+use std::{borrow::BorrowMut, cell::RefCell, collections::VecDeque, rc::Rc, time::Duration};
 
 /// Game controller that runs on a wasm client and communicates with the server via a websocket
 
@@ -20,7 +20,7 @@ pub struct GC {
     green1: RigidBodyHandle,
     green2: RigidBodyHandle,
     /// Find entity at requests (yes it's ugly)
-    find_entity_at: Rc<RefCell<Vec<Rc<RefCell<Option<Option<RigidBodyHandle>>>>>>>
+    find_entity_at: Rc<RefCell<VecDeque<Rc<RefCell<Option<Option<RigidBodyHandle>>>>>>>
 }
 impl GCTrait for GC {
     async fn new(
@@ -60,7 +60,7 @@ impl GCTrait for GC {
 
         let gs = Rc::new(RefCell::new(GameState::default()));
         let gs_rc = gs.clone();
-        let find_entity_at: Rc<RefCell<Vec<Rc<RefCell<Option<Option<RigidBodyHandle>>>>>>> = Rc::new(RefCell::new(Vec::new()));
+        let find_entity_at: Rc<RefCell<VecDeque<Rc<RefCell<Option<Option<RigidBodyHandle>>>>>>> = Rc::new(RefCell::new(VecDeque::new()));
         let mut fia_rc = find_entity_at.clone();
         socket.set_on_message(Some(Box::new(move |socket, msg| {
             let msg_bits = match msg {
@@ -76,7 +76,7 @@ impl GCTrait for GC {
             };
             match msg {
                 ServerMsg::GameState(gs) => {gs_rc.replace(gs);},
-                ServerMsg::FindEntityAtRes(res) => match (*fia_rc).borrow_mut().pop() {
+                ServerMsg::FindEntityAtRes(res) => match (*fia_rc).borrow_mut().pop_front() {
                     Some(rc) => {rc.replace(Some(res));},
                     None => {
                         warn!("Find entity response but no request");
@@ -130,20 +130,29 @@ impl GCTrait for GC {
         self.socket.send_binary(msg_bits).unwrap()
     }
     fn find_entity_at_rc(&self, pos: rapier2d::prelude::Point<f32>, rc: Rc<RefCell<Option<RigidBodyHandle>>>, default: Option<RigidBodyHandle>) {
+        let msg = ClientMsg::FindEntityAt(pos);
+        let msg_bits = bitcode::serialize(&msg).unwrap();
+        self.socket.send_binary(msg_bits).unwrap();
         let id = Rc::new(RefCell::new(None));
         let id_rc = id.clone();
-        (*self.find_entity_at).borrow_mut().push(id_rc);
+        (*self.find_entity_at).borrow_mut().push_back(id_rc);
         wasm_bindgen_futures::spawn_local(async move {
             while id.borrow().is_none() {
                 sleep(Duration::from_millis(0)).await;
             }
-            rc.replace(id.take().unwrap_or(default));
+            rc.replace(match id.take().unwrap() {
+                Some(id) => Some(id),
+                None => default
+            });
         });
     }
     async fn find_entity_at(&mut self, pos: rapier2d::prelude::Point<f32>) -> Option<RigidBodyHandle> {
+        let msg = ClientMsg::FindEntityAt(pos);
+        let msg_bits = bitcode::serialize(&msg).unwrap();
+        self.socket.send_binary(msg_bits).unwrap();
         let id = Rc::new(RefCell::new(None));
         let id_rc = id.clone();
-        (*self.find_entity_at).borrow_mut().push(id_rc);
+        (*self.find_entity_at).borrow_mut().push_back(id_rc);
         while id.borrow().is_none() {
             sleep(Duration::from_millis(0)).await;
         }

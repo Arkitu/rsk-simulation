@@ -183,6 +183,10 @@ fn select_dragging(
         {
             *dragging = Dragging(None);
         }
+        #[cfg(feature = "async")]
+        {
+            *(*dragging.0).borrow_mut() = None
+        }
     }
 }
 
