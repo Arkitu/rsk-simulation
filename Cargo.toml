@@ -8,7 +8,6 @@ edition = "2021"
 gui = []
 bevy_gui = ["dep:bevy", "gui"]
 http_gui = [
-    "rapier2d/serde-serialize",
     "gui",
     "http",
     "bitcode",
@@ -19,7 +18,7 @@ http_gui = [
 
     # wasm-server-runner
     "dep:anyhow",
-    "dep:tracing",
+    #"dep:tracing",
     "dep:tracing-subscriber",
     "dep:wasm-bindgen-cli-support",
     "dep:axum",
@@ -36,26 +35,30 @@ http_gui = [
 ]
 
 # Game controllers
-standard_game_controller = []
-http_game_controller = [
+standard_gc = []
+http_gc = [
+    "async",
     "http",
     "dep:wasm-sockets",
+    "dep:wasm-bindgen-futures",
+    "dep:futures",
+    "dep:gloo-timers",
     "bitcode"
 ]
 
-serde = ["dep:serde"]
+serde = ["dep:serde", "rapier2d/serde-serialize"]
 json = ["serde", "dep:serde_json"]
 http = []
 bitcode = ["serde", "dep:bitcode"]
+async = []
 
-default = ["http_gui"]
+default_server = ["standard_gc", "http_gui"]
+default_client = ["http_gc", "bevy_gui"]
+default = ["default_server"]
 
 [dependencies]
-rapier2d = { version = "0.18.0", features = [
-    "simd-stable",
-    "serde-serialize"
-] }
-log = "0.4.21"
+rapier2d = { version = "0.18.0", features = ["simd-stable"] }
+tracing = "0.1"
 nalgebra = { version = "0.32.5", features = ["convert-glam025"] }
 
 bevy = { version = "0.13.2", features = ["jpeg"], optional = true }
@@ -72,9 +75,14 @@ tokio-tungstenite = { version = "0.21.0", optional = true }
 # Web socket (client)
 wasm-sockets = { version = "1.0", optional = true }
 
+# Wasm async
+futures = { version = "0.3", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+gloo-timers = { version = "0.3", features = ["futures"], optional = true }
+
 # wasm-server-runner
 anyhow = { version = "1.0", optional = true }
-tracing = { version = "0.1", default-features = false, features = ["release_max_level_debug"], optional = true }
+# tracing = { version = "0.1", default-features = false, features = ["release_max_level_debug"], optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 wasm-bindgen-cli-support = { version = "0.2", optional = true }
 axum = { version = "0.7", default-features = false, features = ["http1", "ws"], optional = true }
@@ -93,6 +101,7 @@ rcgen = { version = "0.12", default-features = false, features = ["ring"], optio
 console_log = "1.0.0"
 wasm_thread = "0.3.0"
 console_error_panic_hook = "0.1.7"
+tracing-wasm = "0.2"
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

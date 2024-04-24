@@ -62,7 +62,7 @@ struct GCTeam {
 
 /// Game controller
 pub struct GC {
-    simu: Simulation,
+    pub simu: Simulation,
     state: GCState,
     // [blue, green]
     teams: [GCTeam; 2],
@@ -185,7 +185,7 @@ impl GCTrait for GC {
                                             / 1000
                                     },
                                 ),
-                                penalized_reson: self.teams[0].robots[0]
+                                penalized_reason: self.teams[0].robots[0]
                                     .penalty_reason
                                     .map(|pr| pr.into()),
                                 preempted: self.teams[0].robots[0].tasks.len() > 1,
@@ -205,7 +205,7 @@ impl GCTrait for GC {
                                             / 1000
                                     },
                                 ),
-                                penalized_reson: self.teams[0].robots[1]
+                                penalized_reason: self.teams[0].robots[1]
                                     .penalty_reason
                                     .map(|pr| pr.into()),
                                 preempted: self.teams[0].robots[1].tasks.len() > 1,
@@ -232,7 +232,7 @@ impl GCTrait for GC {
                                             / 1000
                                     },
                                 ),
-                                penalized_reson: self.teams[1].robots[0]
+                                penalized_reason: self.teams[1].robots[0]
                                     .penalty_reason
                                     .map(|pr| pr.into()),
                                 preempted: self.teams[1].robots[0].tasks.len() > 1,
@@ -252,7 +252,7 @@ impl GCTrait for GC {
                                             / 1000
                                     },
                                 ),
-                                penalized_reson: self.teams[1].robots[1]
+                                penalized_reason: self.teams[1].robots[1]
                                     .penalty_reason
                                     .map(|pr| pr.into()),
                                 preempted: self.teams[1].robots[1].tasks.len() > 1,
@@ -276,22 +276,22 @@ impl GCTrait for GC {
     fn teleport_ball(&mut self, pos: Point<f32>) {
         self.simu.bodies[self.simu.ball].set_position(pos.into(), true);
     }
-    fn teleport_robot(&mut self, id: Robot, pos: Point<f32>) {
-        let (team, robot) = match id {
-            Robot::Blue1 => (0, 0),
-            Robot::Blue2 => (0, 1),
-            Robot::Green1 => (1, 0),
-            Robot::Green2 => (0, 1),
-        };
-        self.simu.bodies[self.teams[team].robots[robot].handle].set_position(pos.into(), true);
-    }
-    fn find_entity_at(&self, pos: Point<f32>) -> Option<RigidBodyHandle> {
+    fn find_entity_at(&mut self, pos: Point<f32>) -> Option<RigidBodyHandle> {
         self.simu.find_entity_at(pos)
     }
-    fn move_entity(&mut self, entity: RigidBodyHandle, pos: Point<f32>) {
+    fn teleport_entity(&mut self, entity: RigidBodyHandle, pos: Point<f32>) {
         self.simu.bodies[entity].set_position(pos.into(), true);
     }
     fn get_ball_handle(&self) -> RigidBodyHandle {
         self.simu.ball
+    }
+    fn get_robot_handle(&self, id: Robot) -> RigidBodyHandle {
+        let (team, robot) = match id {
+            Robot::Blue1 => (0, 0),
+            Robot::Blue2 => (0, 1),
+            Robot::Green1 => (1, 0),
+            Robot::Green2 => (1, 1),
+        };
+        self.teams[team].robots[robot].handle
     }
 }

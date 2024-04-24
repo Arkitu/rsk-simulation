@@ -1,7 +1,11 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use crate::constants::*;
 use crate::game_controller::{GCTrait, GC};
 use crate::game_state::GameState;
 use crate::gui::GUITrait;
+use bevy::log::LogPlugin;
 use bevy::window::PrimaryWindow;
 /// Bevy is only used to visualize the simulation
 use bevy::{
@@ -18,7 +22,6 @@ const FIELD_IMG: (f32, f32) = (9335., 7030.);
 #[derive(Resource)]
 struct BevyGameState(GameState);
 
-#[derive(Resource)]
 struct BevyGC(GC);
 
 #[derive(Component)]
@@ -118,7 +121,7 @@ fn setup(
     ));
 }
 
-fn update_gs(mut gc: ResMut<BevyGC>, mut gs: ResMut<BevyGameState>) {
+fn update_gs(mut gc: NonSendMut<BevyGC>, mut gs: ResMut<BevyGameState>) {
     gc.0.step();
     gs.0 = gc.0.get_game_state();
 }
@@ -146,35 +149,60 @@ fn move_objects(
     }
 }
 
-#[derive(Resource)]
+#[cfg(not(feature = "async"))]
+#[derive(Resource, Default)]
 struct Dragging(Option<RigidBodyHandle>);
 
+#[cfg(feature = "async")]
+#[derive(Default)]
+struct Dragging(Rc<RefCell<Option<RigidBodyHandle>>>);
+
 fn select_dragging(
-    gc: Res<BevyGC>,
+    mut gc: NonSendMut<BevyGC>,
+    #[cfg(not(feature = "async"))]
     mut dragging: ResMut<Dragging>,
+    #[cfg(feature = "async")]
+    mut dragging: NonSendMut<Dragging>,
     q_windows: Query<&Window, With<PrimaryWindow>>,
     buttons: Res<ButtonInput<MouseButton>>,
 ) {
     if buttons.just_pressed(MouseButton::Left) {
         if let Some(position) = q_windows.single().cursor_position() {
-            let entity = gc.0.find_entity_at(cursor_to_simu(position));
-            *dragging = Dragging(Some(entity.unwrap_or(gc.0.get_ball_handle())))
+            #[cfg(not(feature = "async"))]
+            {
+                let entity = gc.0.find_entity_at(cursor_to_simu(position));
+                *dragging = Dragging(Some(entity.unwrap_or(gc.0.get_ball_handle())))
+            }
+            #[cfg(feature = "async")]
+            {
+                gc.0.find_entity_at_rc(cursor_to_simu(position), dragging.0.clone(), Some(gc.0.get_ball_handle()));
+            }
         }
     } else if buttons.just_released(MouseButton::Left) {
-        *dragging = Dragging(None);
+        #[cfg(not(feature = "async"))]
+        {
+            *dragging = Dragging(None);
+        }
     }
 }
 
 fn update_dragging(
-    mut gc: ResMut<BevyGC>,
+    mut gc: NonSendMut<BevyGC>,
     q_windows: Query<&Window, With<PrimaryWindow>>,
+    #[cfg(not(feature = "async"))]
     dragging: Res<Dragging>,
+    #[cfg(feature = "async")]
+    dragging: NonSend<Dragging>,
 ) {
-    match *dragging {
-        Dragging(None) => (),
-        Dragging(Some(d)) => {
+    #[cfg(not(feature = "async"))]
+    let entity = dragging.0;
+    #[cfg(feature = "async")]
+    let entity = *dragging.0.borrow();
+    match entity {
+        None => (),
+        Some(d) => {
             if let Some(position) = q_windows.single().cursor_position() {
-                gc.0.move_entity(d, cursor_to_simu(position));
+                gc.0.teleport_entity(d, cursor_to_simu(position));
             }
         }
     }
@@ -192,27 +220,32 @@ pub struct BevyGUI;
 impl GUITrait for BevyGUI {
     fn run(gc: GC) {
         let gs = gc.get_game_state();
-        App::new()
-            .add_plugins(DefaultPlugins.set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: "RSK Simulator".to_string(),
-                    resolution: WindowResolution::new(
-                        CARPET.0 * WINDOW_SCALE,
-                        CARPET.1 * WINDOW_SCALE,
-                    ),
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "RSK Simulator".to_string(),
+                        resolution: WindowResolution::new(
+                            CARPET.0 * WINDOW_SCALE,
+                            CARPET.1 * WINDOW_SCALE,
+                        ),
+                        ..default()
+                    }),
                     ..default()
-                }),
-                ..default()
-            }))
+                }).build().disable::<LogPlugin>()
+            )
             .insert_resource(Time::<Fixed>::from_seconds(DT as f64))
-            .insert_resource(BevyGC(gc))
+            // BevyGC is !Send because if http_game_controller feature is on gc is !Send (It is Send with other game controller but it's not a big deal)
+            .insert_non_send_resource(BevyGC(gc))
             .insert_resource(BevyGameState(gs))
-            .insert_resource(Dragging(None))
+            // Same for Dragging
+            .insert_non_send_resource(Dragging::default())
             .add_systems(Startup, setup)
             .add_systems(FixedUpdate, update_gs)
             .add_systems(Update, move_objects)
             .add_systems(Update, select_dragging)
-            .add_systems(Update, update_dragging)
-            .run();
+            .add_systems(Update, update_dragging);
+
+        app.run()
     }
 }

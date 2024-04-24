@@ -2,8 +2,9 @@ use rapier2d::prelude::*;
 
 use crate::game_state::GameState;
 
-const WS_PORT: u16 = 1234;
+pub const WS_PORT: u16 = 1234;
 
+#[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ServerMsg {
     Initial(InitialMsg),
@@ -11,12 +12,14 @@ pub enum ServerMsg {
     FindEntityAtRes(Option<RigidBodyHandle>)
 }
 
+#[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ClientMsg {
-    MoveEntity(RigidBodyHandle, Point<f32>),
+    TeleportEntity(RigidBodyHandle, Point<f32>),
     FindEntityAt(Point<f32>)
 }
 
+#[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct InitialMsg {
     pub ball: RigidBodyHandle,

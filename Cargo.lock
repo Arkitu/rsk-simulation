@@ -2413,6 +2413,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 
 [[package]]
+name = "gloo-timers"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbb143cf96099802033e0d4f4963b19fd2e0b728bcf076cd9cf7f6634f092994"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "js-sys",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "glow"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4129,8 +4141,9 @@ dependencies = [
  "console_log",
  "directories",
  "fastrand",
+ "futures",
+ "gloo-timers",
  "http",
- "log 0.4.21",
  "nalgebra",
  "rapier2d",
  "rcgen",
@@ -4142,7 +4155,9 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "tracing-wasm",
  "wasm-bindgen-cli-support",
+ "wasm-bindgen-futures",
  "wasm-sockets",
  "wasm_thread",
  "websocket",

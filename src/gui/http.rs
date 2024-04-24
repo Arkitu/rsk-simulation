@@ -4,7 +4,8 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use log::warn;
+use nalgebra::vector;
+use tracing::{debug, info, warn};
 use websocket::Message;
 
 use crate::constants::*;
@@ -42,10 +43,11 @@ impl GUITrait for HttpGUI {
                 //         }
                 //     }
                 // }
-                let listener = websocket::server::sync::Server::bind(format!("127.0.0.1:{}", WS_PORT)).unwrap();
+                let mut listener = websocket::server::sync::Server::bind(format!("127.0.0.1:{}", WS_PORT)).unwrap();
                 let mut last_step = Instant::now();
                 while let Ok(mut stream) = listener.accept() {
-                    let stream = stream.accept().unwrap();
+                    info!(target: "server_ws", "Incoming connection");
+                    let mut stream = stream.accept().unwrap();
                     let initial_msg = InitialMsg {
                         ball: gc.get_ball_handle(),
                         blue1: gc.get_robot_handle(Robot::Blue1),
@@ -55,9 +57,27 @@ impl GUITrait for HttpGUI {
                     };
                     let initial_msg_bits = bitcode::serialize(&ServerMsg::Initial(initial_msg)).unwrap();
                     if let Err(e) = stream.send_message(&Message::binary(initial_msg_bits)) {
-                        warn!("{}", e);
+                        warn!(target: "server_ws", "{}", e);
                     }
+                    let (mut listener, mut sender) = stream.split().unwrap();
+                    // Listener thread
+                    thread::spawn(move || {
+                        for msg in listener.incoming_messages() {
+                            match msg {
+                                Ok(msg) => info!(target: "server_ws", "{:?}", msg),
+                                Err(e) => {
+                                    warn!(target: "server_ws", "{:?}", e);
+                                    break
+                                }
+                            }
+                        }
+                    });
+                    let mut start = Instant::now();
                     loop {
+                        if start.elapsed() > Duration::from_millis(5000) {
+                            let ball = gc.get_ball_handle();
+                            gc.simu.bodies[ball].set_linvel(vector![0.3, 0.05], true);
+                        }
                         while last_step.elapsed() > Duration::from_millis(FRAME_DURATION as u64)/2 {
                             gc.step();
                             last_step += Duration::from_millis(FRAME_DURATION as u64);
@@ -65,10 +85,12 @@ impl GUITrait for HttpGUI {
                         let gs = gc.get_game_state();
                         let gs_bits = bitcode::serialize(&ServerMsg::GameState(gs)).unwrap();
                         // Send game state to client but break if client disconnects
-                        if let Err(e) = stream.send_message(&Message::binary(gs_bits)) {
-                            warn!("{}", e);
+                        if let Err(e) = sender.send_message(&Message::binary(gs_bits)) {
+                            warn!(target: "server_ws", "{}", e);
+                            break;
                         }
                     }
+                    info!(target: "server_ws", "End of connection");
                 }
             })
         ];
@@ -442,10 +464,10 @@ mod wasm_server_runner {
                 }
 
                 match level {
-                    "log" => tracing::info!(target: "app", "{text}"),
+                    "log" => {},//tracing::info!(target: "app", "{text}"),
 
                     "trace" => tracing::trace!(target: "app", "{text}"),
-                    "debug" => tracing::debug!(target: "app", "{text}"),
+                    "debug" => {},//tracing::debug!(target: "app", "{text}"),
                     "info" => tracing::info!(target: "app", "{text}"),
                     "warn" => tracing::warn!(target: "app", "{text}"),
                     "error" => tracing::error!(target: "app", "{text}"),
