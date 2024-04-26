@@ -22,6 +22,7 @@ const FIELD_IMG: (f32, f32) = (9335., 7030.);
 #[derive(Resource)]
 struct BevyGameState(GameState);
 
+#[cfg_attr(not(feature = "async"), derive(Resource))]
 struct BevyGC(GC);
 
 #[derive(Component)]
@@ -121,7 +122,13 @@ fn setup(
     ));
 }
 
-fn update_gs(mut gc: NonSendMut<BevyGC>, mut gs: ResMut<BevyGameState>) {
+fn update_gs(
+    #[cfg(not(feature = "async"))]
+    mut gc: ResMut<BevyGC>,
+    #[cfg(feature = "async")]
+    mut gc: NonSendMut<BevyGC>,
+    mut gs: ResMut<BevyGameState>
+) {
     gc.0.step();
     gs.0 = gc.0.get_game_state();
 }
@@ -158,6 +165,9 @@ struct Dragging(Option<RigidBodyHandle>);
 struct Dragging(Rc<RefCell<Option<RigidBodyHandle>>>);
 
 fn select_dragging(
+    #[cfg(not(feature = "async"))]
+    mut gc: ResMut<BevyGC>,
+    #[cfg(feature = "async")]
     mut gc: NonSendMut<BevyGC>,
     #[cfg(not(feature = "async"))]
     mut dragging: ResMut<Dragging>,
@@ -178,7 +188,7 @@ fn select_dragging(
                 gc.0.find_entity_at_rc(cursor_to_simu(position), dragging.0.clone(), Some(gc.0.get_ball_handle()));
             }
         }
-    } else if buttons.just_released(MouseButton::Left) {
+    } else if !buttons.pressed(MouseButton::Left) { // better in async because find_entity_at_rc can update dragging after mouse release
         #[cfg(not(feature = "async"))]
         {
             *dragging = Dragging(None);
@@ -191,6 +201,9 @@ fn select_dragging(
 }
 
 fn update_dragging(
+    #[cfg(not(feature = "async"))]
+    mut gc: ResMut<BevyGC>,
+    #[cfg(feature = "async")]
     mut gc: NonSendMut<BevyGC>,
     q_windows: Query<&Window, With<PrimaryWindow>>,
     #[cfg(not(feature = "async"))]
@@ -236,19 +249,23 @@ impl GUITrait for BevyGUI {
                         ..default()
                     }),
                     ..default()
-                }).build().disable::<LogPlugin>()
+                })
             )
             .insert_resource(Time::<Fixed>::from_seconds(DT as f64))
-            // BevyGC is !Send because if http_game_controller feature is on gc is !Send (It is Send with other game controller but it's not a big deal)
-            .insert_non_send_resource(BevyGC(gc))
             .insert_resource(BevyGameState(gs))
-            // Same for Dragging
-            .insert_non_send_resource(Dragging::default())
             .add_systems(Startup, setup)
             .add_systems(FixedUpdate, update_gs)
             .add_systems(Update, move_objects)
             .add_systems(Update, select_dragging)
             .add_systems(Update, update_dragging);
+
+        #[cfg(not(feature = "async"))]
+        app.insert_resource(BevyGC(gc))
+            .insert_resource(Dragging::default());
+
+        #[cfg(feature = "async")]
+        app.insert_non_send_resource(BevyGC(gc))
+            .insert_non_send_resource(Dragging::default());
 
         app.run()
     }

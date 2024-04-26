@@ -52,9 +52,10 @@ http = []
 bitcode = ["serde", "dep:bitcode"]
 async = []
 
+default_native = ["standard_gc", "bevy_gui"]
 default_server = ["standard_gc", "http_gui"]
 default_client = ["http_gc", "bevy_gui"]
-default = ["default_server"]
+default = ["default_native"]
 
 [dependencies]
 rapier2d = { version = "0.18.0", features = ["simd-stable"] }
