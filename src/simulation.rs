@@ -1,5 +1,6 @@
-use crate::constants::*;
-use rapier2d::prelude::*;
+use crate::{constants::simu::*, game_state::Robot};
+use nalgebra::Isometry2;
+use rapier2d_f64::prelude::*;
 
 pub struct Simulation {
     pub bodies: RigidBodySet,
@@ -7,11 +8,11 @@ pub struct Simulation {
     pub goals: [ColliderHandle; 2],
     pub ball: RigidBodyHandle,
     pub robots: [RigidBodyHandle; 4],
-    gravity: Vector<f32>,
+    gravity: Vector<f64>,
     integration_parameters: IntegrationParameters,
     physics_pipeline: PhysicsPipeline,
     islands: IslandManager,
-    broad_phase: BroadPhase,
+    broad_phase: DefaultBroadPhase,
     narrow_phase: NarrowPhase,
     impulse_joints: ImpulseJointSet,
     multibody_joints: MultibodyJointSet,
@@ -29,18 +30,18 @@ impl Simulation {
 
         // Create the goals
         let goals = [
-            colliders.insert(ColliderBuilder::segment(
-                point![MARGIN, MARGIN + ((FIELD.1 - GOAL_HEIGHT) / 2.)],
-                point![MARGIN, MARGIN + ((FIELD.1 + GOAL_HEIGHT) / 2.)],
-            )),
-            colliders.insert(ColliderBuilder::segment(
-                point![FIELD.0 + MARGIN, MARGIN + ((FIELD.1 - GOAL_HEIGHT) / 2.)],
-                point![FIELD.0 + MARGIN, MARGIN + ((FIELD.1 + GOAL_HEIGHT) / 2.)],
-            )),
+            colliders.insert(ColliderBuilder::segment(GREEN_GOAL.0, GREEN_GOAL.1).sensor(true)),
+            colliders.insert(ColliderBuilder::segment(BLUE_GOAL.0, BLUE_GOAL.1).sensor(true)),
         ];
 
         // Create the ball
-        let ball = bodies.insert(RigidBodyBuilder::dynamic().position(DEFAULT_BALL_POS.into()));
+        let ball = bodies.insert(
+            RigidBodyBuilder::dynamic()
+                .position(DEFAULT_BALL_POS.into())
+                .linear_damping(BALL_DAMPING)
+                .can_sleep(false)
+                .dominance_group(-1)
+            );
         colliders.insert_with_parent(
             ColliderBuilder::ball(BALL_RADIUS)
                 .restitution(BALL_RESTITUTION)
@@ -50,24 +51,28 @@ impl Simulation {
         );
 
         // Create the robots
-        let robots = [
-            bodies.insert(RigidBodyBuilder::dynamic().position(DEFAULT_BLUE1_POS.into())),
-            bodies.insert(RigidBodyBuilder::dynamic().position(DEFAULT_BLUE2_POS.into())),
-            bodies.insert(RigidBodyBuilder::dynamic().position(DEFAULT_GREEN1_POS.into())),
-            bodies.insert(RigidBodyBuilder::dynamic().position(DEFAULT_GREEN2_POS.into())),
-        ];
+        let robots = std::array::from_fn(|i| bodies.insert(
+            RigidBodyBuilder::dynamic()
+                .position(DEFAULT_ROBOTS_POS[i].into())
+                .rotation(DEFAULT_ROBOTS_ANGLE[i])
+                .linear_damping(ROBOT_DAMPING)
+                .angular_damping(ROBOT_ANGULAR_DAMPING)
+                .can_sleep(false)
+        ));
         for robot in robots.iter() {
+            const r: f64 = ROBOT_RADIUS - 0.001;
             colliders.insert_with_parent(
                 // Collider is a regular hexagon with radius ROBOT_RADIUS
-                ColliderBuilder::convex_polyline(vec![
-                    point![0., ROBOT_RADIUS],
-                    point![ROBOT_RADIUS * 0.866, ROBOT_RADIUS * 0.5],
-                    point![ROBOT_RADIUS * 0.866, -ROBOT_RADIUS * 0.5],
-                    point![0., -ROBOT_RADIUS],
-                    point![-ROBOT_RADIUS * 0.866, -ROBOT_RADIUS * 0.5],
-                    point![-ROBOT_RADIUS * 0.866, ROBOT_RADIUS * 0.5],
-                ])
-                .unwrap(),
+                ColliderBuilder::round_convex_hull(&[
+                    point![0., r],
+                    point![r * 0.866, r * 0.5],
+                    point![r * 0.866, -r * 0.5],
+                    point![0., -r],
+                    point![-r * 0.866, -r * 0.5],
+                    point![-r * 0.866, r * 0.5],
+                ], 0.001).unwrap()
+                    .mass(ROBOT_MASS)
+                    .restitution(ROBOT_RESTITUTION),
                 *robot,
                 &mut bodies,
             );
@@ -86,7 +91,7 @@ impl Simulation {
             },
             physics_pipeline: PhysicsPipeline::new(),
             islands: IslandManager::new(),
-            broad_phase: BroadPhase::new(),
+            broad_phase: DefaultBroadPhase::new(),
             narrow_phase: NarrowPhase::new(),
             impulse_joints: ImpulseJointSet::new(),
             multibody_joints: MultibodyJointSet::new(),
@@ -115,7 +120,7 @@ impl Simulation {
         );
         self.t += 1;
     }
-    pub fn find_entity_at(&self, pos: Point<f32>) -> Option<RigidBodyHandle> {
+    pub fn find_entity_at(&self, pos: Point<f64>) -> Option<RigidBodyHandle> {
         let filter = QueryFilter::default();
 
         if let Some((handle, projection)) =
@@ -127,5 +132,35 @@ impl Simulation {
             }
         }
         None
+    }
+    pub const fn get_ball_handle(&self) -> RigidBodyHandle {
+        self.ball
+    }
+    pub const fn get_robot_handle(&self, id: Robot) -> RigidBodyHandle {
+        self.robots[id as usize]
+    }
+    pub fn teleport_entity(&mut self, entity: RigidBodyHandle, pos: Point<f64>, r: Option<f64>) {
+        let body = &mut self.bodies[entity];
+        let mut iso: Isometry2<f64> = pos.into();
+        iso.rotation = r.map(|r| Rotation::new(r)).unwrap_or_else(|| *body.rotation());
+        body.set_position(iso, true);
+    }
+    pub fn teleport_ball(&mut self, pos: Point<f64>) {
+        self.teleport_entity(self.get_ball_handle(), pos, None);
+    }
+    pub fn teleport_robot(&mut self, id: Robot, pos: Point<f64>, r: Option<f64>) {
+        self.teleport_entity(self.get_robot_handle(id), pos, r);
+    }
+    pub fn reset(&mut self) {
+        for (_, b) in self.bodies.iter_mut() {
+            b.reset_forces(true);
+            b.reset_torques(true);
+            b.set_linvel(vector![0., 0.], true);
+            b.set_angvel(0., true);
+        }
+        self.teleport_ball(DEFAULT_BALL_POS);
+        for r in Robot::all() {
+            self.teleport_robot(r, DEFAULT_ROBOTS_POS[r as usize], Some(DEFAULT_ROBOTS_ANGLE[r as usize]));
+        }
     }
 }

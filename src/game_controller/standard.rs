@@ -1,12 +1,20 @@
-use crate::constants::*;
+use std::sync::{Arc, Mutex};
+
+use crate::constants::simu::*;
 use crate::game_state::{
     GameState, Markers, Pose, Referee, RefereeTeam, RefereeTeamRobot, RefereeTeamRobots,
     RefereeTeams, Robot,
 };
 use crate::simulation::Simulation;
-use rapier2d::prelude::*;
 
-use super::GCTrait;
+use nalgebra::Rotation2;
+use rapier2d_f64::prelude::*;
+
+#[cfg(feature = "control")]
+mod control;
+
+#[cfg(feature = "control")]
+use control::Control;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 enum GCState {
@@ -24,148 +32,158 @@ impl From<GCState> for String {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-enum RobotTask {
+#[derive(Clone, Debug)]
+pub enum RobotTask {
+    Penalty {
+        reason: &'static str,
+        // Frame number when the penalty started
+        start: usize
+    },
+    Control {
+        x: f32,
+        y: f32,
+        r: f32
+    }
     // TODO
 }
-impl From<RobotTask> for String {
-    fn from(val: RobotTask) -> Self {
-        match val {}
+impl RobotTask {
+    pub fn preemption_reason(&self, robot: Robot) -> Option<String> {
+        match self {
+            &RobotTask::Penalty { .. } => match robot {
+                Robot::Blue1 => Some("penalty-blue1".to_string()),
+                Robot::Blue2 => Some("penalty-blue2".to_string()),
+                Robot::Green1 => Some("penalty-green1".to_string()),
+                Robot::Green2 => Some("penalty-green2".to_string()),
+            },
+            &RobotTask::Control { .. } => None
+        }
     }
-}
-
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
-enum PenaltyReason {
-    // TODO
-}
-impl From<PenaltyReason> for String {
-    fn from(val: PenaltyReason) -> Self {
-        match val {}
-    }
-}
-
-#[derive(Debug)]
-struct GCRobot {
-    tasks: Vec<RobotTask>,
-    penalty_reason: Option<PenaltyReason>,
-    // Frame number when the penalty started
-    penalty_start: usize,
-    handle: RigidBodyHandle,
 }
 
 #[derive(Debug)]
 struct GCTeam {
     name: String,
-    score: usize,
-    robots: [GCRobot; 2],
+    key: String,
+    score: usize
 }
 
 /// Game controller
 pub struct GC {
+    #[cfg(feature = "control")]
+    control: Control,
     pub simu: Simulation,
     state: GCState,
     // [blue, green]
     teams: [GCTeam; 2],
+    tasks: Arc<Mutex<[Option<RobotTask>; 4]>>,
     blue_team_positive: bool,
     timer: usize,
 }
-impl GCTrait for GC {
-    fn new(
+impl GC {
+    pub fn new(
         blue_team_name: String,
         green_team_name: String,
+        blue_team_key: String,
+        green_team_key: String,
         blue_team_positive: bool,
     ) -> Self {
         let simu = Simulation::new();
-        let robots = simu.robots;
+        let tasks = Arc::new(Mutex::new(std::array::from_fn(|_| None)));
         Self {
+            #[cfg(feature = "control")]
+            control: Control::new([blue_team_key.clone(), green_team_key.clone()], tasks.clone()),
             simu,
             state: GCState::Nothing,
             teams: [
                 GCTeam {
                     name: blue_team_name,
-                    score: 0,
-                    robots: [
-                        GCRobot {
-                            tasks: vec![],
-                            penalty_reason: None,
-                            handle: robots[0],
-                            penalty_start: 0,
-                        },
-                        GCRobot {
-                            tasks: vec![],
-                            penalty_reason: None,
-                            handle: robots[1],
-                            penalty_start: 0,
-                        },
-                    ],
+                    key: blue_team_key,
+                    score: 0
                 },
                 GCTeam {
                     name: green_team_name,
-                    score: 0,
-                    robots: [
-                        GCRobot {
-                            tasks: vec![],
-                            penalty_reason: None,
-                            handle: robots[2],
-                            penalty_start: 0,
-                        },
-                        GCRobot {
-                            tasks: vec![],
-                            penalty_reason: None,
-                            handle: robots[3],
-                            penalty_start: 0,
-                        },
-                    ],
+                    key: green_team_key,
+                    score: 0
                 },
             ],
+            tasks,
             blue_team_positive,
             timer: 0,
         }
     }
-    fn step(&mut self) {
+    pub fn step(&mut self) {
+        let tasks = self.tasks.lock().unwrap();
+        // dbg!(&tasks);
+        for robot in Robot::all() {
+            let handle = self.get_robot_handle(robot);
+            // self.simu.bodies[handle].set_linvel(vector![0., 0.], true);
+            match &tasks[robot as usize] {
+                Some(RobotTask::Control { x, y, r }) => {
+                    dbg!(robot);
+                    let x = *x as f64*MULTIPLIER;
+                    let y = *y as f64*MULTIPLIER;
+                    // dbg!(x, y, r);
+                    let handle = self.get_robot_handle(robot);
+                    let body = &mut self.simu.bodies[handle];
+                    let mut speed = vector![x, y].norm();
+                    if speed > ROBOT_SPEED {
+                        speed = ROBOT_SPEED;
+                    }
+                    let angle = y.atan2(x) + body.rotation().angle();
+                    dbg!(angle);
+                    dbg!(vector![x, y]);
+                    let x = angle.cos();
+                    let y = angle.sin();
+                    
+                    body.set_linvel(dbg!(vector![x, y] * speed), true);
+                    body.set_angvel((*r as f64).min(ROBOT_ANGULAR_SPEED).max(-ROBOT_ANGULAR_SPEED), true);
+
+                    // body.apply_impulse((vector![x, y] * speed) - body.linvel(), true);
+                    // body.apply_torque_impulse((*r as f64).min(ROBOT_ANGULAR_SPEED).max(-ROBOT_ANGULAR_SPEED), true);
+                },
+                _ => {}
+            }
+        }
+        drop(tasks);
         self.simu.step();
+        #[cfg(feature = "control")]
+        self.control.publish(&self.get_game_state());
     }
-    fn get_game_state(&self) -> GameState {
-        let bodies = &self.simu.bodies;
+    pub fn get_game_state(&self) -> GameState {
+        let robots = Robot::all().map(|r| &self.simu.bodies[self.get_robot_handle(r)]);
         let t = self.simu.t;
-        let ball = bodies[self.simu.ball].translation();
-        let mut robots = self.teams.iter().flat_map(|t| t.robots.iter());
-        let robots = [
-            robots.next().unwrap(),
-            robots.next().unwrap(),
-            robots.next().unwrap(),
-            robots.next().unwrap(),
-        ];
+        let ball = self.simu.bodies[self.simu.ball].translation();
+        let tasks = self.tasks.lock().unwrap();
         GameState {
-            ball: Some(point![ball.x, ball.y]),
+            ball: Some(point![ball.x/MULTIPLIER, ball.y/MULTIPLIER]),
             markers: Markers {
                 blue1: Pose {
                     position: point![
-                        bodies[robots[0].handle].translation().x,
-                        bodies[robots[0].handle].translation().y
+                        robots[Robot::Blue1 as usize].translation().x/MULTIPLIER,
+                        robots[Robot::Blue1 as usize].translation().y/MULTIPLIER
                     ],
-                    orientation: bodies[robots[0].handle].rotation().angle(),
+                    orientation: robots[Robot::Blue1 as usize].rotation().angle(),
                 },
                 blue2: Pose {
                     position: point![
-                        bodies[robots[1].handle].translation().x,
-                        bodies[robots[1].handle].translation().y
+                        robots[Robot::Blue2 as usize].translation().x/MULTIPLIER,
+                        robots[Robot::Blue2 as usize].translation().y/MULTIPLIER
                     ],
-                    orientation: bodies[robots[1].handle].rotation().angle(),
+                    orientation: robots[Robot::Blue2 as usize].rotation().angle(),
                 },
                 green1: Pose {
                     position: point![
-                        bodies[robots[2].handle].translation().x,
-                        bodies[robots[2].handle].translation().y
+                        robots[Robot::Green1 as usize].translation().x/MULTIPLIER,
+                        robots[Robot::Green1 as usize].translation().y/MULTIPLIER
                     ],
-                    orientation: bodies[robots[2].handle].rotation().angle(),
+                    orientation: robots[Robot::Green1 as usize].rotation().angle(),
                 },
                 green2: Pose {
                     position: point![
-                        bodies[robots[3].handle].translation().x,
-                        bodies[robots[3].handle].translation().y
+                        robots[Robot::Green2 as usize].translation().x/MULTIPLIER,
+                        robots[Robot::Green2 as usize].translation().y/MULTIPLIER
                     ],
-                    orientation: bodies[robots[3].handle].rotation().angle(),
+                    orientation: robots[Robot::Green2 as usize].rotation().angle(),
                 },
             },
             referee: Referee {
@@ -175,45 +193,43 @@ impl GCTrait for GC {
                         x_positive: self.blue_team_positive,
                         score: self.teams[0].score,
                         robots: RefereeTeamRobots {
-                            one: RefereeTeamRobot {
-                                penalized: self.teams[0].robots[0].penalty_reason.is_some(),
-                                penalized_remaining: self.teams[0].robots[0].penalty_reason.map(
-                                    |_| {
-                                        (self.teams[0].robots[0].penalty_start + PENALTY_DURATION)
-                                            .saturating_sub(t)
-                                            * FRAME_DURATION
-                                            / 1000
-                                    },
-                                ),
-                                penalized_reason: self.teams[0].robots[0]
-                                    .penalty_reason
-                                    .map(|pr| pr.into()),
-                                preempted: self.teams[0].robots[0].tasks.len() > 1,
-                                preemption_reasons: self.teams[0].robots[0]
-                                    .tasks
-                                    .iter()
-                                    .map(|t| (*t).into())
-                                    .collect(),
+                            one: if let Some(task) = &tasks[0] {
+                                RefereeTeamRobot {
+                                    penalized: if let RobotTask::Penalty { .. } = task { true } else { false },
+                                    penalized_remaining: if let RobotTask::Penalty { start, .. } = task { Some(
+                                        (start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000
+                                    ) } else { None },
+                                    penalized_reason: if let RobotTask::Penalty { reason, .. } = task { Some(reason.to_string()) } else { None },
+                                    preempted: task.preemption_reason(Robot::Blue1).is_some(),
+                                    preemption_reasons: task.preemption_reason(Robot::Blue1).map(|r| vec![r]).unwrap_or(vec![])
+                                }
+                            } else {
+                                RefereeTeamRobot {
+                                    penalized: false,
+                                    penalized_remaining: None,
+                                    penalized_reason: None,
+                                    preempted: false,
+                                    preemption_reasons: vec![]
+                                }
                             },
-                            two: RefereeTeamRobot {
-                                penalized: self.teams[0].robots[1].penalty_reason.is_some(),
-                                penalized_remaining: self.teams[0].robots[1].penalty_reason.map(
-                                    |_| {
-                                        (self.teams[0].robots[1].penalty_start + PENALTY_DURATION)
-                                            .saturating_sub(t)
-                                            * FRAME_DURATION
-                                            / 1000
-                                    },
-                                ),
-                                penalized_reason: self.teams[0].robots[1]
-                                    .penalty_reason
-                                    .map(|pr| pr.into()),
-                                preempted: self.teams[0].robots[1].tasks.len() > 1,
-                                preemption_reasons: self.teams[0].robots[1]
-                                    .tasks
-                                    .iter()
-                                    .map(|t| (*t).into())
-                                    .collect(),
+                            two: if let Some(task) = &tasks[1] {
+                                RefereeTeamRobot {
+                                    penalized: if let RobotTask::Penalty { .. } = task { true } else { false },
+                                    penalized_remaining: if let RobotTask::Penalty { start, .. } = task { Some(
+                                        (start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000
+                                    ) } else { None },
+                                    penalized_reason: if let RobotTask::Penalty { reason, .. } = task { Some(reason.to_string()) } else { None },
+                                    preempted: task.preemption_reason(Robot::Blue2).is_some(),
+                                    preemption_reasons: task.preemption_reason(Robot::Blue2).map(|r| vec![r]).unwrap_or(vec![])
+                                }
+                            } else {
+                                RefereeTeamRobot {
+                                    penalized: false,
+                                    penalized_remaining: None,
+                                    penalized_reason: None,
+                                    preempted: false,
+                                    preemption_reasons: vec![]
+                                }
                             },
                         },
                     },
@@ -222,45 +238,43 @@ impl GCTrait for GC {
                         x_positive: !self.blue_team_positive,
                         score: self.teams[1].score,
                         robots: RefereeTeamRobots {
-                            one: RefereeTeamRobot {
-                                penalized: self.teams[1].robots[0].penalty_reason.is_some(),
-                                penalized_remaining: self.teams[1].robots[0].penalty_reason.map(
-                                    |_| {
-                                        (self.teams[1].robots[0].penalty_start + PENALTY_DURATION)
-                                            .saturating_sub(t)
-                                            * FRAME_DURATION
-                                            / 1000
-                                    },
-                                ),
-                                penalized_reason: self.teams[1].robots[0]
-                                    .penalty_reason
-                                    .map(|pr| pr.into()),
-                                preempted: self.teams[1].robots[0].tasks.len() > 1,
-                                preemption_reasons: self.teams[1].robots[0]
-                                    .tasks
-                                    .iter()
-                                    .map(|t| (*t).into())
-                                    .collect(),
+                            one: if let Some(task) = &tasks[2] {
+                                RefereeTeamRobot {
+                                    penalized: if let RobotTask::Penalty { .. } = task { true } else { false },
+                                    penalized_remaining: if let RobotTask::Penalty { start, .. } = task { Some(
+                                        (start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000
+                                    ) } else { None },
+                                    penalized_reason: if let RobotTask::Penalty { reason, .. } = task { Some(reason.to_string()) } else { None },
+                                    preempted: task.preemption_reason(Robot::Green1).is_some(),
+                                    preemption_reasons: task.preemption_reason(Robot::Green1).map(|r| vec![r]).unwrap_or(vec![])
+                                }
+                            } else {
+                                RefereeTeamRobot {
+                                    penalized: false,
+                                    penalized_remaining: None,
+                                    penalized_reason: None,
+                                    preempted: false,
+                                    preemption_reasons: vec![]
+                                }
                             },
-                            two: RefereeTeamRobot {
-                                penalized: self.teams[1].robots[1].penalty_reason.is_some(),
-                                penalized_remaining: self.teams[1].robots[1].penalty_reason.map(
-                                    |_| {
-                                        (self.teams[1].robots[1].penalty_start + PENALTY_DURATION)
-                                            .saturating_sub(t)
-                                            * FRAME_DURATION
-                                            / 1000
-                                    },
-                                ),
-                                penalized_reason: self.teams[1].robots[1]
-                                    .penalty_reason
-                                    .map(|pr| pr.into()),
-                                preempted: self.teams[1].robots[1].tasks.len() > 1,
-                                preemption_reasons: self.teams[1].robots[1]
-                                    .tasks
-                                    .iter()
-                                    .map(|t| (*t).into())
-                                    .collect(),
+                            two: if let Some(task) = &tasks[3] {
+                                RefereeTeamRobot {
+                                    penalized: if let RobotTask::Penalty { .. } = task { true } else { false },
+                                    penalized_remaining: if let RobotTask::Penalty { start, .. } = task { Some(
+                                        (start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000
+                                    ) } else { None },
+                                    penalized_reason: if let RobotTask::Penalty { reason, .. } = task { Some(reason.to_string()) } else { None },
+                                    preempted: task.preemption_reason(Robot::Green2).is_some(),
+                                    preemption_reasons: task.preemption_reason(Robot::Green2).map(|r| vec![r]).unwrap_or(vec![])
+                                }
+                            } else {
+                                RefereeTeamRobot {
+                                    penalized: false,
+                                    penalized_remaining: None,
+                                    penalized_reason: None,
+                                    preempted: false,
+                                    preemption_reasons: vec![]
+                                }
                             },
                         },
                     },
@@ -273,25 +287,19 @@ impl GCTrait for GC {
             },
         }
     }
-    fn teleport_ball(&mut self, pos: Point<f32>) {
-        self.simu.bodies[self.simu.ball].set_position(pos.into(), true);
+    pub fn find_entity_at(&mut self, pos: Point<f64>) -> Option<RigidBodyHandle> {
+        self.simu.find_entity_at(pos*MULTIPLIER)
     }
-    fn find_entity_at(&mut self, pos: Point<f32>) -> Option<RigidBodyHandle> {
-        self.simu.find_entity_at(pos)
+    pub fn teleport_entity(&mut self, entity: RigidBodyHandle, pos: Point<f64>, r: Option<f64>) {
+        self.simu.teleport_entity(entity, pos*MULTIPLIER, r)
     }
-    fn teleport_entity(&mut self, entity: RigidBodyHandle, pos: Point<f32>) {
-        self.simu.bodies[entity].set_position(pos.into(), true);
+    pub fn get_ball_handle(&self) -> RigidBodyHandle {
+        self.simu.get_ball_handle()
     }
-    fn get_ball_handle(&self) -> RigidBodyHandle {
-        self.simu.ball
+    pub fn get_robot_handle(&self, id: Robot) -> RigidBodyHandle {
+        self.simu.get_robot_handle(id)
     }
-    fn get_robot_handle(&self, id: Robot) -> RigidBodyHandle {
-        let (team, robot) = match id {
-            Robot::Blue1 => (0, 0),
-            Robot::Blue2 => (0, 1),
-            Robot::Green1 => (1, 0),
-            Robot::Green2 => (1, 1),
-        };
-        self.teams[team].robots[robot].handle
+    pub fn reset(&mut self) {
+        self.simu.reset()
     }
 }

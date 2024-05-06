@@ -1,4 +1,4 @@
-use rapier2d::prelude::*;
+use rapier2d_f64::prelude::*;
 
 use crate::game_state::GameState;
 
@@ -15,8 +15,9 @@ pub enum ServerMsg {
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ClientMsg {
-    TeleportEntity(RigidBodyHandle, Point<f32>),
-    FindEntityAt(Point<f32>)
+    TeleportEntity(RigidBodyHandle, Point<f64>, Option<f64>),
+    FindEntityAt(Point<f64>),
+    Reset
 }
 
 #[derive(Debug)]

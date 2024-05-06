@@ -1,4 +1,4 @@
-use game_controller::{GCTrait, GC};
+use game_controller::GC;
 
 mod constants;
 mod game_controller;
@@ -21,7 +21,7 @@ fn main() {
 
     #[cfg(feature = "gui")]
     {
-        let gc = GC::new("".to_string(), "".to_string(), true);
+        let gc = GC::new("".to_string(), "".to_string(), "".to_string(), "".to_string(), true);
         use gui::GUITrait;
         gui::GUI::run(gc);
     }

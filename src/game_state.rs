@@ -1,9 +1,9 @@
-#![cfg_attr(debug_assertions, allow(dead_code))] use std::f32::consts::PI;
+use std::f64::consts::PI;
 
 // TODO remove that later
-use rapier2d::prelude::*;
+use rapier2d_f64::prelude::*;
 
-use crate::constants::*;
+use crate::constants::real::*;
 
 // TODO: Not finished
 
@@ -81,8 +81,8 @@ use crate::constants::*;
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Pose {
-    pub position: Point<f32>,
-    pub orientation: f32,
+    pub position: Point<f64>,
+    pub orientation: f64,
 }
 
 #[derive(Clone, Debug)]
@@ -96,10 +96,10 @@ pub struct Markers {
 impl Default for Markers {
     fn default() -> Self {
         Self {
-            blue1: Pose { position: DEFAULT_BLUE1_POS, orientation: 0. },
-            blue2: Pose { position: DEFAULT_BLUE2_POS, orientation: 0. },
-            green1: Pose { position: DEFAULT_GREEN1_POS, orientation: PI },
-            green2: Pose { position: DEFAULT_GREEN2_POS, orientation: PI }
+            blue1: Pose { position: DEFAULT_ROBOTS_POS[0], orientation: 0. },
+            blue2: Pose { position: DEFAULT_ROBOTS_POS[1], orientation: 0. },
+            green1: Pose { position: DEFAULT_ROBOTS_POS[2], orientation: PI },
+            green2: Pose { position: DEFAULT_ROBOTS_POS[3], orientation: PI }
         }
     }
 }
@@ -186,7 +186,7 @@ impl Default for Referee {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GameState {
-    pub ball: Option<Point<f32>>,
+    pub ball: Option<Point<f64>>,
     pub markers: Markers,
     pub referee: Referee,
 }
@@ -200,10 +200,18 @@ impl Default for GameState {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "bevy_gui", derive(bevy::prelude::Component))]
+/// `robot as usize` can be used to index arrays of things related to robots. For example you can get the default position of blue2 with `DEFAULT_ROBOTS_POS[Robot::Blue2 as usize]`
 pub enum Robot {
-    Blue1,
-    Blue2,
-    Green1,
-    Green2,
+    Blue1 = 0,
+    Blue2 = 1,
+    Green1 = 2,
+    Green2 = 3,
+}
+impl Robot {
+    pub const fn all() -> [Self; 4] {
+        [Self::Blue1, Self::Blue2, Self::Green1, Self::Green2]
+    }
 }

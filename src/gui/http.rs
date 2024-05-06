@@ -1,16 +1,13 @@
-use std::collections::VecDeque;
-use std::io::Write;
-use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use nalgebra::vector;
-use tracing::{debug, info, warn};
+use nalgebra::{vector, Point2};
+use tracing::{info, warn};
 use websocket::{Message, OwnedMessage};
 
 use crate::constants::*;
-use crate::game_controller::{GCTrait, GC};
+use crate::game_controller::GC;
 use crate::game_state::Robot;
 use crate::gui::GUITrait;
 use crate::http::{ClientMsg, InitialMsg, ServerMsg, WS_PORT};
@@ -28,22 +25,6 @@ impl GUITrait for HttpGUI {
             }),
             // Send game state to client via websocket (one client only)
             thread::spawn(move || {
-                // let listener = TcpListener::bind(format!("127.0.0.1:{}", WS_PORT)).unwrap();
-                // let mut last_step = Instant::now();
-                // while let Ok((mut stream, _)) = listener.accept() {
-                //     loop {
-                //         while last_step.elapsed() > Duration::from_millis(FRAME_DURATION as u64)/2 {
-                //             gc.step();
-                //             last_step += Duration::from_millis(FRAME_DURATION as u64);
-                //         }
-                //         let gs = gc.get_game_state();
-                //         let gs_json = serde_json::to_string(&gs).unwrap();
-                //         // Send game state to client but break if client disconnects
-                //         if stream.write_all(gs_json.as_bytes()).is_err() {
-                //             break;
-                //         }
-                //     }
-                // }
                 let mut listener = websocket::server::sync::Server::bind(format!("127.0.0.1:{}", WS_PORT)).unwrap();
                 let gc_mutex = Arc::new(Mutex::new(gc));
                 while let Ok(mut stream) = listener.accept() {
@@ -62,7 +43,7 @@ impl GUITrait for HttpGUI {
                     if let Err(e) = stream.send_message(&Message::binary(initial_msg_bits)) {
                         warn!(target: "server_ws", "{}", e);
                     }
-                    let (mut listener, mut sender) = stream.split().unwrap();
+                    let (mut listener, sender) = stream.split().unwrap();
                     let sender = Arc::new(Mutex::new(sender));
                     // Listener thread
                     let gc_mutex_ref = gc_mutex.clone();
@@ -88,8 +69,11 @@ impl GUITrait for HttpGUI {
                                                 s.send_message(&Message::binary(res_bits)).unwrap();
                                                 drop(s);
                                             },
-                                            ClientMsg::TeleportEntity(entity, pos) => {
-                                                gc_mutex_ref.lock().unwrap().teleport_entity(entity, pos);
+                                            ClientMsg::TeleportEntity(entity, pos, r) => {
+                                                gc_mutex_ref.lock().unwrap().teleport_entity(entity, pos, r);
+                                            },
+                                            ClientMsg::Reset => {
+                                                gc_mutex_ref.lock().unwrap().reset();
                                             }
                                         }
                                     },
@@ -105,7 +89,7 @@ impl GUITrait for HttpGUI {
                             }
                         }
                     });
-                    let mut start = Instant::now();
+                    let start = Instant::now();
                     let mut last_step = Instant::now();
                     loop {
                         let mut gc = gc_mutex.lock().unwrap();

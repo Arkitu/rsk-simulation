@@ -1,9 +1,10 @@
 use std::cell::RefCell;
+use std::f64::consts::PI;
 use std::rc::Rc;
 
-use crate::constants::*;
-use crate::game_controller::{GCTrait, GC};
-use crate::game_state::GameState;
+use crate::constants::real::*;
+use crate::game_controller::GC;
+use crate::game_state::{GameState, Robot};
 use crate::gui::GUITrait;
 use bevy::log::LogPlugin;
 use bevy::window::PrimaryWindow;
@@ -14,27 +15,18 @@ use bevy::{
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},
     window::WindowResolution,
 };
-use rapier2d::prelude::*;
+use rapier2d_f64::prelude::*;
 
-const WINDOW_SCALE: f32 = 400.0;
+const WINDOW_SCALE: f32 = 400. as f32;
 const FIELD_IMG: (f32, f32) = (9335., 7030.);
 
 #[derive(Resource)]
 struct BevyGameState(GameState);
 
-#[cfg_attr(not(feature = "async"), derive(Resource))]
 struct BevyGC(GC);
 
 #[derive(Component)]
 struct Ball;
-
-#[derive(Component)]
-enum Robot {
-    Blue1,
-    Blue2,
-    Green1,
-    Green2,
-}
 
 fn setup(
     mut cmds: Commands,
@@ -43,11 +35,11 @@ fn setup(
     asset_server: Res<AssetServer>,
 ) {
     cmds.spawn(Camera2dBundle {
-        transform: Transform::from_xyz(CARPET.0 / 2., CARPET.1 / 2., 10.),
+        transform: Transform::from_xyz(0., 0., 10.),
         projection: OrthographicProjection {
             scaling_mode: ScalingMode::AutoMin {
-                min_width: CARPET.0,
-                min_height: CARPET.1,
+                min_width: CARPET.0 as f32,
+                min_height: CARPET.1 as f32,
             },
             ..default()
         },
@@ -58,8 +50,8 @@ fn setup(
     cmds.spawn(SpriteBundle {
         texture: asset_server.load("field.jpg"),
         transform: Transform {
-            translation: Vec3::new(CARPET.0 / 2., CARPET.1 / 2., 0.),
-            scale: Vec3::splat(CARPET.0 / FIELD_IMG.0),
+            translation: Vec3::new(0., 0., 0.),
+            scale: Vec3::splat(CARPET.0  as f32 / FIELD_IMG.0),
             ..Default::default()
         },
         ..default()
@@ -69,63 +61,48 @@ fn setup(
     cmds.spawn((
         MaterialMesh2dBundle {
             mesh: Mesh2dHandle(meshes.add(Circle {
-                radius: BALL_RADIUS,
+                radius: BALL_RADIUS as f32,
             })),
             material: color_materials.add(Color::rgb_u8(247, 107, 49)),
-            transform: Transform::from_xyz(CARPET.0 / 2., CARPET.1 / 2., 1.),
+            transform: Transform::from_xyz(DEFAULT_BALL_POS.x  as f32, DEFAULT_BALL_POS.y  as f32, 1.),
             ..default()
         },
         Ball,
     ));
 
     // Spawn the robots
-    let hexagon = Mesh2dHandle(meshes.add(RegularPolygon::new(ROBOT_RADIUS, 6)));
+    let hexagon = Mesh2dHandle(meshes.add(RegularPolygon::new(ROBOT_RADIUS  as f32, 6)));
+    let rect = Mesh2dHandle(meshes.add(Rectangle::new(KICKER_THICKNESS as f32, ROBOT_RADIUS as f32))); //ROBOT_RADIUS as f32 * 0.866, ROBOT_RADIUS as f32 * 0.5, (ROBOT_RADIUS as f32 * 0.866)+(KICKER_THICKNESS as f32), ROBOT_RADIUS as f32 * 0.5)));
 
     let blue = color_materials.add(Color::rgb_u8(0, 0, 255));
-    cmds.spawn((
-        MaterialMesh2dBundle {
-            mesh: hexagon.clone(),
-            material: blue.clone(),
-            transform: Transform::from_xyz(DEFAULT_BLUE1_POS.x, DEFAULT_BLUE1_POS.y, 1.),
-            ..default()
-        },
-        Robot::Blue1,
-    ));
-    cmds.spawn((
-        MaterialMesh2dBundle {
-            mesh: hexagon.clone(),
-            material: blue,
-            transform: Transform::from_xyz(DEFAULT_BLUE2_POS.x, DEFAULT_BLUE2_POS.y, 1.),
-            ..default()
-        },
-        Robot::Blue2,
-    ));
-
     let green = color_materials.add(Color::rgb_u8(0, 255, 0));
-    cmds.spawn((
-        MaterialMesh2dBundle {
-            mesh: hexagon.clone(),
-            material: green.clone(),
-            transform: Transform::from_xyz(DEFAULT_GREEN1_POS.x, DEFAULT_GREEN1_POS.y, 1.),
-            ..default()
-        },
-        Robot::Green1,
-    ));
-    cmds.spawn((
-        MaterialMesh2dBundle {
-            mesh: hexagon,
-            material: green,
-            transform: Transform::from_xyz(DEFAULT_GREEN2_POS.x, DEFAULT_GREEN2_POS.y, 1.),
-            ..default()
-        },
-        Robot::Green2,
-    ));
+    let grey = color_materials.add(Color::rgb(0.5, 0.5, 0.5));
+    for r in Robot::all() {
+        let pos = DEFAULT_ROBOTS_POS[r as usize];
+        let material = match r {
+            Robot::Blue1 | Robot::Blue2 => blue.clone(),
+            Robot::Green1 | Robot::Green2 => green.clone(),
+        };
+        let robot = cmds.spawn((
+            MaterialMesh2dBundle {
+                mesh: hexagon.clone(),
+                material,
+                transform: Transform::from_xyz(pos.x as f32, pos.y as f32, 1.),
+                ..default()
+            },
+            r
+        )).with_children(|parent| {
+            parent.spawn(MaterialMesh2dBundle {
+                mesh: rect.clone(),
+                material: grey.clone(),
+                transform: Transform::from_xyz(ROBOT_RADIUS as f32 * 0.866, 0., 0.1),
+                ..default()
+            });
+        });
+    }
 }
 
 fn update_gs(
-    #[cfg(not(feature = "async"))]
-    mut gc: ResMut<BevyGC>,
-    #[cfg(feature = "async")]
     mut gc: NonSendMut<BevyGC>,
     mut gs: ResMut<BevyGameState>
 ) {
@@ -141,7 +118,7 @@ fn move_objects(
     let gs = &gs.0;
 
     if let Some(ball_pos) = gs.ball {
-        *ball.single_mut() = Transform::from_xyz(ball_pos.x, ball_pos.y, 1.);
+        *ball.single_mut() = Transform::from_xyz(ball_pos.x as f32, ball_pos.y as f32, 1.);
     }
 
     for (r, mut pos) in robots.iter_mut() {
@@ -151,13 +128,12 @@ fn move_objects(
             Robot::Green1 => &gs.markers.green1,
             Robot::Green2 => &gs.markers.green2,
         };
-
-        *pos = Transform::from_xyz(new_pos.position.x, new_pos.position.y, 1.);
+        *pos = Transform::from_xyz(new_pos.position.x as f32, new_pos.position.y as f32, 1.).looking_to(Vec3::ZERO, Vec3::new((new_pos.orientation + (PI/2.)).cos() as f32, (new_pos.orientation + (PI/2.)).sin() as f32, 0.));
     }
 }
 
 #[cfg(not(feature = "async"))]
-#[derive(Resource, Default)]
+#[derive(Default)]
 struct Dragging(Option<RigidBodyHandle>);
 
 #[cfg(feature = "async")]
@@ -165,13 +141,7 @@ struct Dragging(Option<RigidBodyHandle>);
 struct Dragging(Rc<RefCell<Option<RigidBodyHandle>>>);
 
 fn select_dragging(
-    #[cfg(not(feature = "async"))]
-    mut gc: ResMut<BevyGC>,
-    #[cfg(feature = "async")]
     mut gc: NonSendMut<BevyGC>,
-    #[cfg(not(feature = "async"))]
-    mut dragging: ResMut<Dragging>,
-    #[cfg(feature = "async")]
     mut dragging: NonSendMut<Dragging>,
     q_windows: Query<&Window, With<PrimaryWindow>>,
     buttons: Res<ButtonInput<MouseButton>>,
@@ -201,14 +171,8 @@ fn select_dragging(
 }
 
 fn update_dragging(
-    #[cfg(not(feature = "async"))]
-    mut gc: ResMut<BevyGC>,
-    #[cfg(feature = "async")]
     mut gc: NonSendMut<BevyGC>,
     q_windows: Query<&Window, With<PrimaryWindow>>,
-    #[cfg(not(feature = "async"))]
-    dragging: Res<Dragging>,
-    #[cfg(feature = "async")]
     dragging: NonSend<Dragging>,
 ) {
     #[cfg(not(feature = "async"))]
@@ -219,18 +183,23 @@ fn update_dragging(
         None => (),
         Some(d) => {
             if let Some(position) = q_windows.single().cursor_position() {
-                gc.0.teleport_entity(d, cursor_to_simu(position));
+                gc.0.teleport_entity(d, cursor_to_simu(position), None);
             }
         }
     }
 }
 
-fn cursor_to_simu(pos: Vec2) -> Point<f32> {
-    let mut pos = pos;
-    pos.y /= WINDOW_SCALE;
-    pos.y = CARPET.1 - pos.y;
-    pos.x /= WINDOW_SCALE;
-    pos.into()
+fn reset(
+    mut gc: NonSendMut<BevyGC>,
+    keys: Res<ButtonInput<KeyCode>>
+) {
+    if keys.just_pressed(KeyCode::KeyR) {
+        gc.0.reset();
+    }
+}
+
+fn cursor_to_simu(pos: Vec2) -> Point<f64> {
+    Point::new((pos.x / WINDOW_SCALE) as f64 - (CARPET.0/2.), -((pos.y / WINDOW_SCALE) as f64 - (CARPET.1/2.)))
 }
 
 pub struct BevyGUI;
@@ -243,8 +212,8 @@ impl GUITrait for BevyGUI {
                     primary_window: Some(Window {
                         title: "RSK Simulator".to_string(),
                         resolution: WindowResolution::new(
-                            CARPET.0 * WINDOW_SCALE,
-                            CARPET.1 * WINDOW_SCALE,
+                            CARPET.0 as f32 * WINDOW_SCALE,
+                            CARPET.1 as f32 * WINDOW_SCALE,
                         ),
                         ..default()
                     }),
@@ -257,14 +226,10 @@ impl GUITrait for BevyGUI {
             .add_systems(FixedUpdate, update_gs)
             .add_systems(Update, move_objects)
             .add_systems(Update, select_dragging)
-            .add_systems(Update, update_dragging);
-
-        #[cfg(not(feature = "async"))]
-        app.insert_resource(BevyGC(gc))
-            .insert_resource(Dragging::default());
-
-        #[cfg(feature = "async")]
-        app.insert_non_send_resource(BevyGC(gc))
+            .add_systems(Update, update_dragging)
+            .add_systems(Update, reset)
+            // BevyGC and Dragging are NonSend with http_gc to it's simpler if they always are
+            .insert_non_send_resource(BevyGC(gc))
             .insert_non_send_resource(Dragging::default());
 
         app.run()

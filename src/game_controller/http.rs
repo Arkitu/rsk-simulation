@@ -1,13 +1,13 @@
-use std::{borrow::BorrowMut, cell::RefCell, collections::VecDeque, rc::Rc, time::Duration};
+use std::{cell::RefCell, collections::VecDeque, rc::Rc, time::Duration};
 
 /// Game controller that runs on a wasm client and communicates with the server via a websocket
 
-use crate::{game_controller::GCTrait, game_state::{GameState, Robot}, http::{ClientMsg, InitialMsg, ServerMsg}};
-use bevy::app::FixedUpdate;
+use crate::{game_state::{GameState, Robot}, http::{ClientMsg, ServerMsg}};
 use gloo_timers::future::sleep;
-use tracing::{debug, info, warn};
-use rapier2d::dynamics::RigidBodyHandle;
-use wasm_sockets::{ConnectionStatus, EventClient, Message, PollingClient};
+use nalgebra::Point2;
+use tracing::{info, warn};
+use rapier2d_f64::dynamics::RigidBodyHandle;
+use wasm_sockets::{EventClient, Message};
 
 const HOST: &'static str = "127.0.0.1:1234";
 
@@ -22,8 +22,8 @@ pub struct GC {
     /// Find entity at requests (yes it's ugly)
     find_entity_at: Rc<RefCell<VecDeque<Rc<RefCell<Option<Option<RigidBodyHandle>>>>>>>
 }
-impl GCTrait for GC {
-    async fn new(
+impl GC {
+    pub async fn new(
             blue_team_name: String,
             green_team_name: String,
             blue_team_positive: bool,
@@ -107,16 +107,16 @@ impl GCTrait for GC {
         //     gs: GameState::default()
         // }
     }
-    async fn step(&mut self) {
+    pub async fn step(&mut self) {
         // We do nothing because the server is already handling the simulation
     }
-    fn get_game_state(&self) -> crate::game_state::GameState {
+    pub fn get_game_state(&self) -> crate::game_state::GameState {
         self.gs.borrow().clone()
     }
-    fn get_ball_handle(&self) -> rapier2d::prelude::RigidBodyHandle {
+    pub fn get_ball_handle(&self) -> RigidBodyHandle {
         self.ball
     }
-    fn get_robot_handle(&self, id: crate::game_state::Robot) -> RigidBodyHandle {
+    pub fn get_robot_handle(&self, id: crate::game_state::Robot) -> RigidBodyHandle {
         match id {
             Robot::Blue1 => self.blue1,
             Robot::Blue2 => self.blue2,
@@ -124,12 +124,12 @@ impl GCTrait for GC {
             Robot::Green2 => self.green2
         }
     }
-    fn teleport_entity(&mut self, entity: RigidBodyHandle, pos: rapier2d::prelude::Point<f32>) {
-        let msg = ClientMsg::TeleportEntity(entity, pos);
+    pub fn teleport_entity(&mut self, entity: RigidBodyHandle, pos: Point2<f64>, r: Option<f64>) {
+        let msg = ClientMsg::TeleportEntity(entity, pos, r);
         let msg_bits = bitcode::serialize(&msg).unwrap();
-        self.socket.send_binary(msg_bits).unwrap()
+        self.socket.send_binary(msg_bits).unwrap();
     }
-    fn find_entity_at_rc(&self, pos: rapier2d::prelude::Point<f32>, rc: Rc<RefCell<Option<RigidBodyHandle>>>, default: Option<RigidBodyHandle>) {
+    pub fn find_entity_at_rc(&self, pos: Point2<f64>, rc: Rc<RefCell<Option<RigidBodyHandle>>>, default: Option<RigidBodyHandle>) {
         let msg = ClientMsg::FindEntityAt(pos);
         let msg_bits = bitcode::serialize(&msg).unwrap();
         self.socket.send_binary(msg_bits).unwrap();
@@ -146,7 +146,7 @@ impl GCTrait for GC {
             });
         });
     }
-    async fn find_entity_at(&mut self, pos: rapier2d::prelude::Point<f32>) -> Option<RigidBodyHandle> {
+    pub async fn find_entity_at(&mut self, pos: Point2<f64>) -> Option<RigidBodyHandle> {
         let msg = ClientMsg::FindEntityAt(pos);
         let msg_bits = bitcode::serialize(&msg).unwrap();
         self.socket.send_binary(msg_bits).unwrap();
@@ -157,5 +157,9 @@ impl GCTrait for GC {
             sleep(Duration::from_millis(0)).await;
         }
         id.take().unwrap()
+    }
+    pub fn reset(&mut self) {
+        let msg_bits = bitcode::serialize(&ClientMsg::Reset).unwrap();
+        self.socket.send_binary(msg_bits).unwrap();
     }
 }
