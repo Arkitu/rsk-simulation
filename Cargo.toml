@@ -7,7 +7,7 @@ edition = "2021"
 # GUIs
 gui = []
 bevy_gui = ["dep:bevy", "gui"]
-http_gui = [
+http_server_gui = [
     "gui",
     "http",
     "bitcode",
@@ -36,7 +36,7 @@ http_gui = [
 
 # Game controllers
 standard_gc = []
-http_gc = [
+http_client_gc = [
     "async",
     "http",
     "dep:wasm-sockets",
@@ -61,9 +61,9 @@ bitcode = ["serde", "dep:bitcode"]
 async = []
 
 default_native = ["control", "standard_gc", "bevy_gui"]
-default_server = ["control", "standard_gc", "http_gui"]
-default_client = ["http_gc", "bevy_gui"]
-default = ["default_client"]
+default_http_server = ["control", "standard_gc", "http_server_gui"]
+default_http_client = ["http_client_gc", "bevy_gui"]
+default = ["default_http_client"]
 
 [dependencies]
 rapier2d-f64 = { version = "0.19", features = ["simd-stable"] }

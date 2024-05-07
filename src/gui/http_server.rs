@@ -12,8 +12,8 @@ use crate::game_state::Robot;
 use crate::gui::GUITrait;
 use crate::http::{ClientMsg, InitialMsg, ServerMsg, WS_PORT};
 
-pub struct HttpGUI;
-impl GUITrait for HttpGUI {
+pub struct GUI;
+impl GUITrait for GUI {
     fn run(mut gc: GC) {
         let threads = [
             // Host the page and wasm file

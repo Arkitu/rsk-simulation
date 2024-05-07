@@ -228,7 +228,7 @@ impl GUITrait for BevyGUI {
             .add_systems(Update, select_dragging)
             .add_systems(Update, update_dragging)
             .add_systems(Update, reset)
-            // BevyGC and Dragging are NonSend with http_gc to it's simpler if they always are
+            // BevyGC and Dragging are NonSend with http_client_gc to it's simpler if they always are
             .insert_non_send_resource(BevyGC(gc))
             .insert_non_send_resource(Dragging::default());
 

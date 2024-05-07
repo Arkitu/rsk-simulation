@@ -34,7 +34,7 @@ fn main() {
     }
 }
 
-#[cfg(all(feature = "http_gc", target_arch = "wasm32"))]
+#[cfg(all(feature = "http_client_gc", target_arch = "wasm32"))]
 fn main() {
     use tracing::{debug, info};
 
