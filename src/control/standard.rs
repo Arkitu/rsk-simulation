@@ -1,91 +1,15 @@
-use std::{sync::{Arc, Mutex}, thread, time::Instant};
-use serde::{ser::SerializeTuple, Deserialize, Serialize};
+use std::{sync::{Arc, Mutex}, thread};
+
 use serde_json::Value;
 use zmq::{Context, Socket};
-use crate::game_state::{GameState, Robot};
 
-use super::RobotTask;
+use crate::game_state::{GameState, Robot, RobotTask};
 
-enum CtrlReq {
-    Control(Robot, Order)
-}
-
-#[derive(Debug)]
-enum CtrlRes {
-    UnknownError,
-    // (team)
-    BadKey(String),
-    Preempted(String, u8, String),
-    UnknownRobot(String, u8),
-    UnknownCommand,
-    Ok
-}
-impl Serialize for CtrlRes {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer {
-        match self {
-            &CtrlRes::UnknownError => {
-                // [False, "Unknown error"]
-                let mut tup = serializer.serialize_tuple(2)?;
-                tup.serialize_element(&false)?;
-                tup.serialize_element("Unknown error")?;
-                tup.end()
-            },
-            &CtrlRes::BadKey(ref team) => {
-                // [False, "Bad key for team {team}"]
-                let mut tup = serializer.serialize_tuple(2)?;
-                tup.serialize_element(&false)?;
-                tup.serialize_element(&format!("Bad key for team {}", team))?;
-                tup.end()
-            },
-            &CtrlRes::Preempted(ref team, robot_number, ref reason) => {
-                // [2, "Robot {number} of team {team} is preempted: {reasons}"]
-                let mut tup = serializer.serialize_tuple(2)?;
-                tup.serialize_element(&2)?;
-                tup.serialize_element(&format!("Robot {} of team {} is preempted: {}", robot_number, team, reason))?;
-                tup.end()
-            },
-            &CtrlRes::UnknownRobot(ref team, robot_number) => {
-                // [False, "Unknown robot: {marker}"]
-                let mut tup = serializer.serialize_tuple(2)?;
-                tup.serialize_element(&false)?;
-                tup.serialize_element(&format!("Unknown robot: {}{}", team, robot_number))?;
-                tup.end()
-            },
-            
-            &CtrlRes::UnknownCommand => {
-                // [2, "Unknown command"]
-                let mut tup = serializer.serialize_tuple(2)?;
-                tup.serialize_element(&2)?;
-                tup.serialize_element("Unknown command")?;
-                tup.end()
-            },
-            &CtrlRes::Ok => {
-                // [True, "ok"]
-                let mut tup = serializer.serialize_tuple(2)?;
-                tup.serialize_element(&true)?;
-                tup.serialize_element("ok")?;
-                tup.end()
-            }
-        }
-    }
-}
-
-#[derive(Default)]
-/// Order (like `robot.control((x, y, r))` in python api)
-struct Order {
-    pub x: f32,
-    pub y: f32,
-    /// rotation
-    pub r: f32
-}
+use super::CtrlRes;
 
 pub struct Control {
     ctrl_thread: thread::JoinHandle<()>,
-    state_socket: Socket,
-    /// [blue1, blue2, green1, green2]
-    orders: Arc<Mutex<[Order; 4]>>
+    state_socket: Socket
 }
 impl Control {
     pub fn new(keys: [String; 2], tasks: Arc<Mutex<[Option<RobotTask>; 4]>>) -> Self {
@@ -97,8 +21,6 @@ impl Control {
         let ctrl_socket = ctx.socket(zmq::REP).unwrap();
         ctrl_socket.bind("tcp://*:7558").unwrap();
 
-        let orders = Arc::new(Mutex::new(std::array::from_fn(|_| Order::default())));
-        let orders_ref = orders.clone();
         Self {
             ctrl_thread: thread::spawn(move || {
                 loop {
@@ -157,8 +79,7 @@ impl Control {
                     ctrl_socket.send(serde_json::to_vec(&res).unwrap(), 0).unwrap();
                 }
             }),
-            state_socket,
-            orders: orders_ref
+            state_socket
         }
     }
     /// Send new game state to client

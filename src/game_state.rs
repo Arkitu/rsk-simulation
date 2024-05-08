@@ -215,3 +215,31 @@ impl Robot {
         [Self::Blue1, Self::Blue2, Self::Green1, Self::Green2]
     }
 }
+
+#[derive(Clone, Debug)]
+pub enum RobotTask {
+    Penalty {
+        reason: &'static str,
+        // Frame number when the penalty started
+        start: usize
+    },
+    Control {
+        x: f32,
+        y: f32,
+        r: f32
+    }
+    // TODO
+}
+impl RobotTask {
+    pub fn preemption_reason(&self, robot: Robot) -> Option<String> {
+        match self {
+            &RobotTask::Penalty { .. } => match robot {
+                Robot::Blue1 => Some("penalty-blue1".to_string()),
+                Robot::Blue2 => Some("penalty-blue2".to_string()),
+                Robot::Green1 => Some("penalty-green1".to_string()),
+                Robot::Green2 => Some("penalty-green2".to_string()),
+            },
+            &RobotTask::Control { .. } => None
+        }
+    }
+}

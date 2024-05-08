@@ -2,7 +2,7 @@ use std::{cell::RefCell, collections::VecDeque, rc::Rc, time::Duration};
 
 /// Game controller that runs on a wasm client and communicates with the server via a websocket
 
-use crate::{game_state::{GameState, Robot}, http::{ClientMsg, ServerMsg}};
+use crate::{game_state::{GameState, Robot}, http::alternative::{ClientMsg, ServerMsg}};
 use gloo_timers::future::sleep;
 use nalgebra::Point2;
 use tracing::{info, warn};
@@ -23,11 +23,7 @@ pub struct GC {
     find_entity_at: Rc<RefCell<VecDeque<Rc<RefCell<Option<Option<RigidBodyHandle>>>>>>>
 }
 impl GC {
-    pub async fn new(
-            blue_team_name: String,
-            green_team_name: String,
-            blue_team_positive: bool,
-    ) -> Self {
+    pub async fn new() -> Self {
         info!("New GC");
         let mut socket = EventClient::new(&format!("ws://{}", HOST)).unwrap();
 

@@ -9,14 +9,52 @@ gui = []
 bevy_gui = ["dep:bevy", "gui"]
 http_server_gui = [
     "gui",
-    "http",
+    "alternative_http",
     "bitcode",
-
-    # Web socket
     "dep:websocket",
-    "dep:tokio-tungstenite",
+    "wasm_server_runner"
+]
 
-    # wasm-server-runner
+# Game controllers
+gc = []
+standard_gc = ["gc"]
+http_client_gc = [
+    "gc",
+    "async",
+    "alternative_http",
+    "dep:wasm-sockets",
+    "dep:wasm-bindgen-futures",
+    "dep:futures",
+    "dep:gloo-timers",
+    "bitcode"
+]
+
+# Control
+control = []
+standard_control = [
+    "control",
+    "json",
+    "dep:zmq",
+    "dep:uuid"
+]
+http_server_control = [
+    "control",
+    "json",
+    "bitcode",
+    "dep:zmq",
+    "dep:websocket",
+    "wasm_server_runner",
+    "default_http"
+]
+http_client_control = ["control"]
+
+serde = ["dep:serde", "rapier2d-f64/serde-serialize"]
+json = ["serde", "dep:serde_json"]
+default_http = []
+alternative_http = []
+bitcode = ["serde", "dep:bitcode"]
+async = []
+wasm_server_runner = [
     "dep:anyhow",
     #"dep:tracing",
     "dep:tracing-subscriber",
@@ -34,36 +72,17 @@ http_server_gui = [
     "dep:rcgen"
 ]
 
-# Game controllers
-standard_gc = []
-http_client_gc = [
-    "async",
-    "http",
-    "dep:wasm-sockets",
-    "dep:wasm-bindgen-futures",
-    "dep:futures",
-    "dep:gloo-timers",
-    "bitcode"
-]
+# server: simu + gc + control / client: gui
+alternative_http_server = ["standard_control", "standard_gc", "http_server_gui"]
+alternative_http_client = ["http_client_gc", "bevy_gui"]
 
-# Control
-control = [
-    "standard_gc", # For now, control is only working with standard_gc
-    "json",
-    "dep:zmq",
-    "dep:uuid"
-]
+# server: control / client: simu + gc + gui
+default_http_server = ["http_server_control"]
+default_http_client = ["http_client_control", "standard_gc", "bevy_gui"]
 
-serde = ["dep:serde", "rapier2d-f64/serde-serialize"]
-json = ["serde", "dep:serde_json"]
-http = []
-bitcode = ["serde", "dep:bitcode"]
-async = []
+default_native = ["standard_control", "standard_gc", "bevy_gui"]
 
-default_native = ["control", "standard_gc", "bevy_gui"]
-default_http_server = ["control", "standard_gc", "http_server_gui"]
-default_http_client = ["http_client_gc", "bevy_gui"]
-default = ["default_http_client"]
+default = ["default_http_server"]
 
 [dependencies]
 rapier2d-f64 = { version = "0.19", features = ["simd-stable"] }

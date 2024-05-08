@@ -1,17 +1,23 @@
-use game_controller::GC;
-
 mod constants;
-mod game_controller;
 mod game_state;
 mod simulation;
 
-#[cfg(feature = "http")]
+#[cfg(feature = "gc")]
+mod game_controller;
+
+#[cfg(any(feature = "alternative_http", feature = "default_http"))]
 mod http;
 
 #[cfg(feature = "gui")]
 mod gui;
 
-#[cfg(not(feature = "async"))]
+#[cfg(feature = "control")]
+mod control;
+
+#[cfg(feature = "wasm_server_runner")]
+mod wasm_server_runner;
+
+#[cfg(feature = "standard_gc")]
 fn main() {
     #[cfg(target_arch = "wasm32")]
     {
@@ -19,15 +25,15 @@ fn main() {
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     }
 
+    let mut gc = game_controller::GC::new("".to_string(), "".to_string(), "".to_string(), "".to_string(), false);
+
     #[cfg(feature = "gui")]
     {
-        let gc = GC::new("".to_string(), "".to_string(), "".to_string(), "".to_string(), true);
         use gui::GUITrait;
         gui::GUI::run(gc);
     }
     #[cfg(not(any(feature = "gui")))]
     {
-        let mut gc = GC::new("", "", true);
         loop {
             gc.step();
         }
@@ -45,16 +51,23 @@ fn main() {
 
         #[cfg(feature = "gui")]
         {
-            let gc = GC::new("".to_string(), "".to_string(), true).await;
+            let gc = game_controller::GC::new("".to_string(), "".to_string(), true).await;
             use gui::GUITrait;
             gui::GUI::run(gc);
         }
         #[cfg(not(any(feature = "gui")))]
         {
-            let mut gc = GC::new("", "", true);
+            let mut gc = game_controller::GC::new("", "", true);
             loop {
                 gc.step();
             }
         }
     })
+}
+
+#[cfg(feature = "http_server_control")]
+fn main() {
+    use control::Control;
+
+    let ctrl = Control::run(["".to_string(), "".to_string()]);
 }

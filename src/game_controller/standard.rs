@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use crate::constants::simu::*;
 use crate::game_state::{
     GameState, Markers, Pose, Referee, RefereeTeam, RefereeTeamRobot, RefereeTeamRobots,
-    RefereeTeams, Robot,
+    RefereeTeams, Robot, RobotTask,
 };
 use crate::simulation::Simulation;
 
@@ -11,10 +11,7 @@ use nalgebra::Rotation2;
 use rapier2d_f64::prelude::*;
 
 #[cfg(feature = "control")]
-mod control;
-
-#[cfg(feature = "control")]
-use control::Control;
+use crate::control::Control;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 enum GCState {
@@ -28,34 +25,6 @@ impl From<GCState> for String {
         match val {
             GCState::Nothing => "Game is ready to start".to_string(),
             _ => "".to_string(), // TODO
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum RobotTask {
-    Penalty {
-        reason: &'static str,
-        // Frame number when the penalty started
-        start: usize
-    },
-    Control {
-        x: f32,
-        y: f32,
-        r: f32
-    }
-    // TODO
-}
-impl RobotTask {
-    pub fn preemption_reason(&self, robot: Robot) -> Option<String> {
-        match self {
-            &RobotTask::Penalty { .. } => match robot {
-                Robot::Blue1 => Some("penalty-blue1".to_string()),
-                Robot::Blue2 => Some("penalty-blue2".to_string()),
-                Robot::Green1 => Some("penalty-green1".to_string()),
-                Robot::Green2 => Some("penalty-green2".to_string()),
-            },
-            &RobotTask::Control { .. } => None
         }
     }
 }
@@ -75,7 +44,10 @@ pub struct GC {
     state: GCState,
     // [blue, green]
     teams: [GCTeam; 2],
+    #[cfg(not(target_arch = "wasm"))]
     tasks: Arc<Mutex<[Option<RobotTask>; 4]>>,
+    #[cfg(target_arch = "wasm")]
+    tasks: Rc<RefCell<[Option<RobotTask>; 4]>>,
     blue_team_positive: bool,
     timer: usize,
 }
