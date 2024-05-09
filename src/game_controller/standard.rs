@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use crate::constants::simu::*;
@@ -6,8 +8,6 @@ use crate::game_state::{
     RefereeTeams, Robot, RobotTask,
 };
 use crate::simulation::Simulation;
-
-use nalgebra::Rotation2;
 use rapier2d_f64::prelude::*;
 
 #[cfg(feature = "control")]
@@ -44,9 +44,9 @@ pub struct GC {
     state: GCState,
     // [blue, green]
     teams: [GCTeam; 2],
-    #[cfg(not(target_arch = "wasm"))]
+    #[cfg(not(target_arch = "wasm32"))]
     tasks: Arc<Mutex<[Option<RobotTask>; 4]>>,
-    #[cfg(target_arch = "wasm")]
+    #[cfg(target_arch = "wasm32")]
     tasks: Rc<RefCell<[Option<RobotTask>; 4]>>,
     blue_team_positive: bool,
     timer: usize,
@@ -60,7 +60,10 @@ impl GC {
         blue_team_positive: bool,
     ) -> Self {
         let simu = Simulation::new();
+        #[cfg(not(target_arch = "wasm32"))]
         let tasks = Arc::new(Mutex::new(std::array::from_fn(|_| None)));
+        #[cfg(target_arch = "wasm32")]
+        let tasks = Rc::new(RefCell::new(std::array::from_fn(|_| None)));
         Self {
             #[cfg(feature = "control")]
             control: Control::new([blue_team_key.clone(), green_team_key.clone()], tasks.clone()),
@@ -84,7 +87,10 @@ impl GC {
         }
     }
     pub fn step(&mut self) {
+        #[cfg(not(target_arch = "wasm32"))]
         let tasks = self.tasks.lock().unwrap();
+        #[cfg(target_arch = "wasm32")]
+        let tasks = self.tasks.borrow();
         // dbg!(&tasks);
         for robot in Robot::all() {
             let handle = self.get_robot_handle(robot);
@@ -119,13 +125,16 @@ impl GC {
         drop(tasks);
         self.simu.step();
         #[cfg(feature = "control")]
-        self.control.publish(&self.get_game_state());
+        self.control.publish(self.get_game_state());
     }
     pub fn get_game_state(&self) -> GameState {
         let robots = Robot::all().map(|r| &self.simu.bodies[self.get_robot_handle(r)]);
         let t = self.simu.t;
         let ball = self.simu.bodies[self.simu.ball].translation();
+        #[cfg(not(target_arch = "wasm32"))]
         let tasks = self.tasks.lock().unwrap();
+        #[cfg(target_arch = "wasm32")]
+        let tasks = self.tasks.borrow();
         GameState {
             ball: Some(point![ball.x/MULTIPLIER, ball.y/MULTIPLIER]),
             markers: Markers {

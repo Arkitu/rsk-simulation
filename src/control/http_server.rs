@@ -5,10 +5,19 @@ use websocket::{Message, OwnedMessage};
 use zmq::Context;
 
 use crate::http::{default::ClientMsg, WS_PORT};
+use crate::wasm_server_runner;
 
 pub struct Control;
 impl Control {
     pub fn run(keys: [String; 2]) {
+        // Host the page and wasm file
+        thread::spawn(|| {
+            wasm_server_runner::main(
+                "./target/wasm32-unknown-unknown/debug/rsk-simulation.wasm".to_string(),
+            )
+            .unwrap();
+        });
+
         let ctx = Context::new();
 
         let mut server = websocket::server::sync::Server::bind(format!("127.0.0.1:{}", WS_PORT)).unwrap();

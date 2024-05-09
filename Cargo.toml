@@ -46,7 +46,13 @@ http_server_control = [
     "wasm_server_runner",
     "default_http"
 ]
-http_client_control = ["control"]
+http_client_control = [
+    "control",
+    "json",
+    "bitcode",
+    "dep:wasm-sockets",
+    "default_http"
+]
 
 serde = ["dep:serde", "rapier2d-f64/serde-serialize"]
 json = ["serde", "dep:serde_json"]
@@ -82,7 +88,7 @@ default_http_client = ["http_client_control", "standard_gc", "bevy_gui"]
 
 default_native = ["standard_control", "standard_gc", "bevy_gui"]
 
-default = ["default_http_server"]
+default = ["default_http_client"]
 
 [dependencies]
 rapier2d-f64 = { version = "0.19", features = ["simd-stable"] }
@@ -130,6 +136,7 @@ fastrand = { version = "2.0", optional = true }
 rcgen = { version = "0.12", default-features = false, features = ["ring"], optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+log = "0.4"
 console_log = "1.0"
 wasm_thread = "0.3"
 console_error_panic_hook = "0.1"

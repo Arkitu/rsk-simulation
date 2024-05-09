@@ -1,8 +1,5 @@
-use std::{sync::{Arc, Mutex}, thread};
+#[cfg(feature = "serde")]
 use serde::{ser::SerializeTuple, Serialize};
-use serde_json::Value;
-use zmq::{Context, Socket};
-use crate::game_state::{GameState, Robot, RobotTask};
 
 #[derive(Debug)]
 enum CtrlRes {
@@ -14,6 +11,7 @@ enum CtrlRes {
     UnknownCommand,
     Ok
 }
+#[cfg(feature = "serde")]
 impl Serialize for CtrlRes {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
@@ -80,3 +78,9 @@ mod http_server;
 
 #[cfg(feature = "http_server_control")]
 pub use http_server::Control;
+
+#[cfg(feature = "http_client_control")]
+mod http_client;
+
+#[cfg(feature = "http_client_control")]
+pub use http_client::Control;

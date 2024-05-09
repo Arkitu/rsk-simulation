@@ -4220,6 +4220,7 @@ dependencies = [
  "futures",
  "gloo-timers",
  "http",
+ "log 0.4.21",
  "nalgebra",
  "rapier2d-f64",
  "rcgen",
