@@ -63,6 +63,9 @@ impl Control {
                             error!(target: "server_ws", "{:?}", e);
                             break
                         },
+                        Ok(OwnedMessage::Close(_)) => {
+                            break
+                        }
                         _ => unimplemented!()
                     }
                 }
