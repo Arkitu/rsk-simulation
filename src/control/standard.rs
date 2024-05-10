@@ -84,7 +84,7 @@ impl Control {
     }
     /// Send new game state to client
     pub fn publish(&self, gs: GameState) {
-        let json = serde_json::to_vec(gs).unwrap();
+        let json = serde_json::to_vec(&gs).unwrap();
         self.state_socket.send(json, 0).unwrap();
     }
 }
