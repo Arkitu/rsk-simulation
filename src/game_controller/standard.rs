@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::constants::simu::*;
 use crate::game_state::{
-    GameState, Markers, Pose, Referee, RefereeRobotInfo, RefereeTeam, RefereeTeamRobots,
+    GameState, Markers, Pose, Referee, RefereeTeam, RefereeTeamRobot, RefereeTeamRobots,
     RefereeTeams, Robot, RobotTask,
 };
 use crate::simulation::Simulation;
@@ -183,7 +183,7 @@ impl GC {
                         score: self.teams[0].score,
                         robots: RefereeTeamRobots {
                             one: if let Some(task) = &tasks[0] {
-                                RefereeRobotInfo {
+                                RefereeTeamRobot {
                                     penalized: if let RobotTask::Penalty { .. } = task {
                                         true
                                     } else {
@@ -215,7 +215,7 @@ impl GC {
                                         .unwrap_or(vec![]),
                                 }
                             } else {
-                                RefereeRobotInfo {
+                                RefereeTeamRobot {
                                     penalized: false,
                                     penalized_remaining: None,
                                     penalized_reason: None,
@@ -224,7 +224,7 @@ impl GC {
                                 }
                             },
                             two: if let Some(task) = &tasks[1] {
-                                RefereeRobotInfo {
+                                RefereeTeamRobot {
                                     penalized: if let RobotTask::Penalty { .. } = task {
                                         true
                                     } else {
@@ -256,7 +256,7 @@ impl GC {
                                         .unwrap_or(vec![]),
                                 }
                             } else {
-                                RefereeRobotInfo {
+                                RefereeTeamRobot {
                                     penalized: false,
                                     penalized_remaining: None,
                                     penalized_reason: None,
@@ -272,7 +272,7 @@ impl GC {
                         score: self.teams[1].score,
                         robots: RefereeTeamRobots {
                             one: if let Some(task) = &tasks[2] {
-                                RefereeRobotInfo {
+                                RefereeTeamRobot {
                                     penalized: if let RobotTask::Penalty { .. } = task {
                                         true
                                     } else {
@@ -304,7 +304,7 @@ impl GC {
                                         .unwrap_or(vec![]),
                                 }
                             } else {
-                                RefereeRobotInfo {
+                                RefereeTeamRobot {
                                     penalized: false,
                                     penalized_remaining: None,
                                     penalized_reason: None,
@@ -313,7 +313,7 @@ impl GC {
                                 }
                             },
                             two: if let Some(task) = &tasks[3] {
-                                RefereeRobotInfo {
+                                RefereeTeamRobot {
                                     penalized: if let RobotTask::Penalty { .. } = task {
                                         true
                                     } else {
@@ -345,7 +345,7 @@ impl GC {
                                         .unwrap_or(vec![]),
                                 }
                             } else {
-                                RefereeRobotInfo {
+                                RefereeTeamRobot {
                                     penalized: false,
                                     penalized_remaining: None,
                                     penalized_reason: None,
