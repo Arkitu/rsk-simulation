@@ -17,6 +17,8 @@ mod control;
 #[cfg(feature = "wasm_server_runner")]
 mod wasm_server_runner;
 
+mod referee;
+
 #[cfg(feature = "standard_gc")]
 fn main() {
     #[cfg(target_arch = "wasm32")]
@@ -25,21 +27,27 @@ fn main() {
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     }
 
-    let mut gc = game_controller::GC::new(
-        "".to_string(),
-        "".to_string(),
-        "".to_string(),
-        "".to_string(),
-        false,
-    );
-
     #[cfg(feature = "gui")]
     {
+        let gc = game_controller::GC::new(
+            "".to_string(),
+            "".to_string(),
+            "".to_string(),
+            "".to_string(),
+            false,
+        );
         use gui::GUITrait;
         gui::GUI::run(gc);
     }
     #[cfg(not(any(feature = "gui")))]
     {
+        let mut gc = game_controller::GC::new(
+            "".to_string(),
+            "".to_string(),
+            "".to_string(),
+            "".to_string(),
+            false,
+        );
         loop {
             gc.step();
         }

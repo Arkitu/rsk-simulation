@@ -1,3 +1,4 @@
+#![allow(unused)]
 /// Distances in meters, mass in killograms, origin at the center of field
 
 pub const DT: f64 = 1.0 / 100.0;

@@ -1,55 +1,19 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::sync::{Arc, Mutex};
-
 use crate::constants::simu::*;
-use crate::game_state::{
-    GameState, Markers, Pose, Referee, RefereeTeam, RefereeTeamRobot, RefereeTeamRobots,
-    RefereeTeams, Robot, RobotTask,
-};
+use crate::game_state::{GameState, Markers, Pose, Robot, RobotTask};
 use crate::simulation::Simulation;
 use rapier2d_f64::prelude::*;
 
 #[cfg(feature = "control")]
 use crate::control::Control;
-
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
-enum GCState {
-    Nothing,
-    GameRunning,
-    GamePaused,
-    Halftime,
-}
-impl From<GCState> for String {
-    fn from(val: GCState) -> Self {
-        match val {
-            GCState::Nothing => "Game is ready to start".to_string(),
-            _ => "".to_string(), // TODO
-        }
-    }
-}
-
-#[derive(Debug)]
-struct GCTeam {
-    name: String,
-    key: String,
-    score: usize,
-}
+use crate::referee::RefereeInfo;
 
 /// Game controller
 pub struct GC {
     #[cfg(feature = "control")]
     control: Control,
     pub simu: Simulation,
-    state: GCState,
     // [blue, green]
-    teams: [GCTeam; 2],
-    #[cfg(not(target_arch = "wasm32"))]
-    tasks: Arc<Mutex<[Option<RobotTask>; 4]>>,
-    #[cfg(target_arch = "wasm32")]
-    tasks: Rc<RefCell<[Option<RobotTask>; 4]>>,
-    blue_team_positive: bool,
-    timer: usize,
+    referee: RefereeInfo,
 }
 impl GC {
     pub fn new(
@@ -60,43 +24,31 @@ impl GC {
         blue_team_positive: bool,
     ) -> Self {
         let simu = Simulation::new();
-        #[cfg(not(target_arch = "wasm32"))]
-        let tasks = Arc::new(Mutex::new(std::array::from_fn(|_| None)));
-        #[cfg(target_arch = "wasm32")]
-        let tasks = Rc::new(RefCell::new(std::array::from_fn(|_| None)));
+        let referee = RefereeInfo::new(
+            blue_team_name,
+            green_team_name,
+            blue_team_key.clone(),
+            green_team_key.clone(),
+            blue_team_positive,
+        );
         Self {
             #[cfg(feature = "control")]
             control: Control::new(
                 [blue_team_key.clone(), green_team_key.clone()],
-                tasks.clone(),
+                referee.tasks.clone(),
             ),
             simu,
-            state: GCState::Nothing,
-            teams: [
-                GCTeam {
-                    name: blue_team_name,
-                    key: blue_team_key,
-                    score: 0,
-                },
-                GCTeam {
-                    name: green_team_name,
-                    key: green_team_key,
-                    score: 0,
-                },
-            ],
-            tasks,
-            blue_team_positive,
-            timer: 0,
+            referee,
         }
     }
     pub fn step(&mut self) {
         #[cfg(not(target_arch = "wasm32"))]
-        let tasks = self.tasks.lock().unwrap();
+        let tasks = self.referee.tasks.lock().unwrap();
         #[cfg(target_arch = "wasm32")]
-        let tasks = self.tasks.borrow();
+        let tasks = self.referee.tasks.borrow();
         // dbg!(&tasks);
         for robot in Robot::all() {
-            let handle = self.get_robot_handle(robot);
+            // let handle = self.get_robot_handle(robot);
             // self.simu.bodies[handle].set_linvel(vector![0., 0.], true);
             match &tasks[robot as usize] {
                 Some(RobotTask::Control { x, y, r }) => {
@@ -139,10 +91,6 @@ impl GC {
         let robots = Robot::all().map(|r| &self.simu.bodies[self.get_robot_handle(r)]);
         let t = self.simu.t;
         let ball = self.simu.bodies[self.simu.ball].translation();
-        #[cfg(not(target_arch = "wasm32"))]
-        let tasks = self.tasks.lock().unwrap();
-        #[cfg(target_arch = "wasm32")]
-        let tasks = self.tasks.borrow();
         GameState {
             ball: Some(point![ball.x / MULTIPLIER, ball.y / MULTIPLIER]),
             markers: Markers {
@@ -175,193 +123,7 @@ impl GC {
                     orientation: robots[Robot::Green2 as usize].rotation().angle(),
                 },
             },
-            referee: Referee {
-                teams: RefereeTeams {
-                    blue: RefereeTeam {
-                        name: self.teams[0].name.clone(),
-                        x_positive: self.blue_team_positive,
-                        score: self.teams[0].score,
-                        robots: RefereeTeamRobots {
-                            one: if let Some(task) = &tasks[0] {
-                                RefereeTeamRobot {
-                                    penalized: if let RobotTask::Penalty { .. } = task {
-                                        true
-                                    } else {
-                                        false
-                                    },
-                                    penalized_remaining: if let RobotTask::Penalty {
-                                        start, ..
-                                    } = task
-                                    {
-                                        Some(
-                                            (start + PENALTY_DURATION).saturating_sub(t)
-                                                * FRAME_DURATION
-                                                / 1000,
-                                        )
-                                    } else {
-                                        None
-                                    },
-                                    penalized_reason: if let RobotTask::Penalty { reason, .. } =
-                                        task
-                                    {
-                                        Some(reason.to_string())
-                                    } else {
-                                        None
-                                    },
-                                    preempted: task.preemption_reason(Robot::Blue1).is_some(),
-                                    preemption_reasons: task
-                                        .preemption_reason(Robot::Blue1)
-                                        .map(|r| vec![r])
-                                        .unwrap_or(vec![]),
-                                }
-                            } else {
-                                RefereeTeamRobot {
-                                    penalized: false,
-                                    penalized_remaining: None,
-                                    penalized_reason: None,
-                                    preempted: false,
-                                    preemption_reasons: vec![],
-                                }
-                            },
-                            two: if let Some(task) = &tasks[1] {
-                                RefereeTeamRobot {
-                                    penalized: if let RobotTask::Penalty { .. } = task {
-                                        true
-                                    } else {
-                                        false
-                                    },
-                                    penalized_remaining: if let RobotTask::Penalty {
-                                        start, ..
-                                    } = task
-                                    {
-                                        Some(
-                                            (start + PENALTY_DURATION).saturating_sub(t)
-                                                * FRAME_DURATION
-                                                / 1000,
-                                        )
-                                    } else {
-                                        None
-                                    },
-                                    penalized_reason: if let RobotTask::Penalty { reason, .. } =
-                                        task
-                                    {
-                                        Some(reason.to_string())
-                                    } else {
-                                        None
-                                    },
-                                    preempted: task.preemption_reason(Robot::Blue2).is_some(),
-                                    preemption_reasons: task
-                                        .preemption_reason(Robot::Blue2)
-                                        .map(|r| vec![r])
-                                        .unwrap_or(vec![]),
-                                }
-                            } else {
-                                RefereeTeamRobot {
-                                    penalized: false,
-                                    penalized_remaining: None,
-                                    penalized_reason: None,
-                                    preempted: false,
-                                    preemption_reasons: vec![],
-                                }
-                            },
-                        },
-                    },
-                    green: RefereeTeam {
-                        name: self.teams[1].name.clone(),
-                        x_positive: !self.blue_team_positive,
-                        score: self.teams[1].score,
-                        robots: RefereeTeamRobots {
-                            one: if let Some(task) = &tasks[2] {
-                                RefereeTeamRobot {
-                                    penalized: if let RobotTask::Penalty { .. } = task {
-                                        true
-                                    } else {
-                                        false
-                                    },
-                                    penalized_remaining: if let RobotTask::Penalty {
-                                        start, ..
-                                    } = task
-                                    {
-                                        Some(
-                                            (start + PENALTY_DURATION).saturating_sub(t)
-                                                * FRAME_DURATION
-                                                / 1000,
-                                        )
-                                    } else {
-                                        None
-                                    },
-                                    penalized_reason: if let RobotTask::Penalty { reason, .. } =
-                                        task
-                                    {
-                                        Some(reason.to_string())
-                                    } else {
-                                        None
-                                    },
-                                    preempted: task.preemption_reason(Robot::Green1).is_some(),
-                                    preemption_reasons: task
-                                        .preemption_reason(Robot::Green1)
-                                        .map(|r| vec![r])
-                                        .unwrap_or(vec![]),
-                                }
-                            } else {
-                                RefereeTeamRobot {
-                                    penalized: false,
-                                    penalized_remaining: None,
-                                    penalized_reason: None,
-                                    preempted: false,
-                                    preemption_reasons: vec![],
-                                }
-                            },
-                            two: if let Some(task) = &tasks[3] {
-                                RefereeTeamRobot {
-                                    penalized: if let RobotTask::Penalty { .. } = task {
-                                        true
-                                    } else {
-                                        false
-                                    },
-                                    penalized_remaining: if let RobotTask::Penalty {
-                                        start, ..
-                                    } = task
-                                    {
-                                        Some(
-                                            (start + PENALTY_DURATION).saturating_sub(t)
-                                                * FRAME_DURATION
-                                                / 1000,
-                                        )
-                                    } else {
-                                        None
-                                    },
-                                    penalized_reason: if let RobotTask::Penalty { reason, .. } =
-                                        task
-                                    {
-                                        Some(reason.to_string())
-                                    } else {
-                                        None
-                                    },
-                                    preempted: task.preemption_reason(Robot::Green2).is_some(),
-                                    preemption_reasons: task
-                                        .preemption_reason(Robot::Green2)
-                                        .map(|r| vec![r])
-                                        .unwrap_or(vec![]),
-                                }
-                            } else {
-                                RefereeTeamRobot {
-                                    penalized: false,
-                                    penalized_remaining: None,
-                                    penalized_reason: None,
-                                    preempted: false,
-                                    preemption_reasons: vec![],
-                                }
-                            },
-                        },
-                    },
-                },
-                game_is_running: self.state == GCState::GameRunning,
-                game_paused: self.state == GCState::GamePaused,
-                halftime_is_running: self.state == GCState::Halftime,
-                timer: self.timer * FRAME_DURATION / 1000,
-                game_state_msg: self.state.into(),
-            },
+            referee: self.referee.get_referee_state(t),
         }
     }
     pub fn find_entity_at(&mut self, pos: Point<f64>) -> Option<RigidBodyHandle> {

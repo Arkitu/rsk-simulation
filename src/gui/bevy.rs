@@ -1,12 +1,13 @@
+#[cfg(feature = "async")]
 use std::cell::RefCell;
 use std::f64::consts::PI;
+#[cfg(feature = "async")]
 use std::rc::Rc;
 
 use crate::constants::real::*;
 use crate::game_controller::GC;
 use crate::game_state::{GameState, Robot};
 use crate::gui::GUITrait;
-use bevy::log::LogPlugin;
 use bevy::window::PrimaryWindow;
 /// Bevy is only used to visualize the simulation
 use bevy::{
@@ -88,7 +89,7 @@ fn setup(
             Robot::Blue1 | Robot::Blue2 => blue.clone(),
             Robot::Green1 | Robot::Green2 => green.clone(),
         };
-        let robot = cmds
+        let _ = cmds
             .spawn((
                 MaterialMesh2dBundle {
                     mesh: hexagon.clone(),

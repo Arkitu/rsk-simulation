@@ -62,17 +62,17 @@ impl Simulation {
             )
         });
         for robot in robots.iter() {
-            const r: f64 = ROBOT_RADIUS - 0.001;
+            const R: f64 = ROBOT_RADIUS - 0.001;
             colliders.insert_with_parent(
                 // Collider is a regular hexagon with radius ROBOT_RADIUS
                 ColliderBuilder::round_convex_hull(
                     &[
-                        point![0., r],
-                        point![r * 0.866, r * 0.5],
-                        point![r * 0.866, -r * 0.5],
-                        point![0., -r],
-                        point![-r * 0.866, -r * 0.5],
-                        point![-r * 0.866, r * 0.5],
+                        point![0., R],
+                        point![R * 0.866, R * 0.5],
+                        point![R * 0.866, -R * 0.5],
+                        point![0., -R],
+                        point![-R * 0.866, -R * 0.5],
+                        point![-R * 0.866, R * 0.5],
                     ],
                     0.001,
                 )
