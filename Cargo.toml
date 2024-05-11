@@ -44,14 +44,17 @@ http_server_control = [
     "dep:zmq",
     "dep:websocket",
     "wasm_server_runner",
-    "default_http"
+    "default_http",
+    "dep:tokio"
 ]
 http_client_control = [
     "control",
     "json",
     "bitcode",
     "dep:wasm-sockets",
-    "default_http"
+    "default_http",
+    "dep:url",
+    "dep:rand"
 ]
 
 serde = ["dep:serde", "rapier2d-f64/serde-serialize"]
@@ -88,14 +91,17 @@ default_http_client = ["http_client_control", "standard_gc", "bevy_gui"]
 
 default_native = ["standard_control", "standard_gc", "bevy_gui"]
 
-default = ["default_native"]
+default = ["default_http_server"]
 
 [dependencies]
 rapier2d-f64 = { version = "0.19", features = ["simd-stable"] }
 tracing = "0.1"
 nalgebra = { version = "0.32", features = ["convert-glam025"] }
-
-bevy = { version = "0.13", features = ["jpeg"], optional = true }
+bevy = { version = "0.13", default-features = false, features = [
+    "jpeg","bevy_asset","bevy_core_pipeline","bevy_render","bevy_sprite","bevy_winit","multi-threaded","webgl2"
+], optional = true }
+url = { version = "2.5", optional = true }
+rand = { version = "0.8", optional = true }
 
 # Control
 zmq = { version = "0.10", optional = true }
@@ -107,7 +113,7 @@ serde_json = { version = "1.0", optional = true }
 bitcode = { version = "0.6", features = ["serde"], optional = true }
 
 # Web socket (server)
-websocket = { version = "0.27", default-features = false, features = ["sync"], optional = true }
+websocket = { version = "0.27", default-features = false, features = ["async"], optional = true }
 tokio-tungstenite = { version = "0.21", optional = true }
 
 # Web socket (client)
@@ -141,6 +147,7 @@ console_log = "1.0"
 wasm_thread = "0.3"
 console_error_panic_hook = "0.1"
 tracing-wasm = "0.2"
+web-sys = { version = "0.3", features = ["Location", "Window"] }
 
 [build-dependencies]
 cfg_aliases = "0.2"

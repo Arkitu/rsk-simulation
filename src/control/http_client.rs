@@ -15,8 +15,8 @@ pub struct Control {
     socket: EventClient
 }
 impl Control {
-    pub fn new(keys: [String; 2], tasks: Rc<RefCell<[Option<RobotTask>; 4]>>) -> Self {
-        let mut socket = EventClient::new(&format!("ws://{}", HOST)).unwrap();
+    pub fn new(keys: [String; 2], tasks: Rc<RefCell<[Option<RobotTask>; 4]>>, session_id: &str) -> Self {
+        let mut socket = EventClient::new(&format!("ws://{}/{}", HOST, session_id)).unwrap();
 
         socket.set_on_connection(Some(Box::new(|socket| {
             info!("Socket connected");

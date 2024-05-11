@@ -1,7 +1,7 @@
 use std::{sync::mpsc, thread};
 
 use tracing::{error, info};
-use websocket::{Message, OwnedMessage};
+use websocket::{Message, OwnedMessage, futures::{Stream, Future}};
 use zmq::Context;
 
 use crate::http::{default::ClientMsg, WS_PORT};
@@ -9,21 +9,22 @@ use crate::wasm_server_runner;
 
 pub struct Control;
 impl Control {
-    pub fn run(keys: [String; 2]) {
+    pub async fn run(keys: [String; 2]) {
         // Host the page and wasm file
-        thread::spawn(|| {
-            wasm_server_runner::main(
-                "./target/wasm32-unknown-unknown/debug/rsk-simulation.wasm".to_string(),
-            )
-            .unwrap();
-        });
+        tokio::spawn(wasm_server_runner::main(
+            "./target/wasm32-unknown-unknown/debug/rsk-simulation.wasm".to_string(),
+        ));
 
         let ctx = Context::new();
 
-        let mut server = websocket::server::sync::Server::bind(format!("127.0.0.1:{}", WS_PORT)).unwrap();
-        while let Ok(stream) = server.accept() {
-            info!(target: "server_ws", "Incoming connection");
-            let stream = stream.accept().unwrap();
+        let mut server = websocket::server::r#async::Server::bind(format!("127.0.0.1:{}", WS_PORT), &Default::default()).unwrap();
+        server.incoming().for_each(|(upgrade, addr)| {
+            tokio::spawn(async move {
+                info!(target: "server_ws", "Incoming connection");
+
+            let stream = upgrade.accept().and_then(|(s, x)| {
+                s.into()
+            });
             let (mut listener, mut sender) = stream.split().unwrap();
 
             let state_socket = ctx.socket(zmq::PUB).unwrap();
@@ -70,7 +71,9 @@ impl Control {
                     }
                 }
 
-                state_socket.unbind("tcp://*:7557").unwrap();
+                if let Err(e) = state_socket.unbind("tcp://*:7557") {
+                    error!("{}", e);
+                }
             });
             // control thread
             // forwards controls to the websocket
@@ -89,7 +92,15 @@ impl Control {
                         break
                     }
                 }
+
+                if let Err(e) = ctrl_socket.unbind("tcp://*:7558") {
+                    error!("{}", e);
+                }
             });
-        }
+            });
+            
+
+            Ok(())
+        });
     }
 }

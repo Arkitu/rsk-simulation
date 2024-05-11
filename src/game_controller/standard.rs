@@ -13,6 +13,12 @@ use rapier2d_f64::prelude::*;
 #[cfg(feature = "control")]
 use crate::control::Control;
 
+#[cfg(not(target_arch = "wasm32"))]
+type TasksType = Arc<Mutex<[Option<RobotTask>; 4]>>;
+
+#[cfg(target_arch = "wasm32")]
+type TasksType = Rc<RefCell<[Option<RobotTask>; 4]>>;
+
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 enum GCState {
     Nothing,
@@ -44,10 +50,7 @@ pub struct GC {
     state: GCState,
     // [blue, green]
     teams: [GCTeam; 2],
-    #[cfg(not(target_arch = "wasm32"))]
-    tasks: Arc<Mutex<[Option<RobotTask>; 4]>>,
-    #[cfg(target_arch = "wasm32")]
-    tasks: Rc<RefCell<[Option<RobotTask>; 4]>>,
+    tasks: TasksType,
     blue_team_positive: bool,
     timer: usize,
 }
@@ -58,15 +61,19 @@ impl GC {
         blue_team_key: String,
         green_team_key: String,
         blue_team_positive: bool,
+        #[cfg(feature = "http_client_control")]
+        session_id: &str
     ) -> Self {
         let simu = Simulation::new();
-        #[cfg(not(target_arch = "wasm32"))]
-        let tasks = Arc::new(Mutex::new(std::array::from_fn(|_| None)));
-        #[cfg(target_arch = "wasm32")]
-        let tasks = Rc::new(RefCell::new(std::array::from_fn(|_| None)));
+        let tasks = TasksType::default();
         Self {
             #[cfg(feature = "control")]
-            control: Control::new([blue_team_key.clone(), green_team_key.clone()], tasks.clone()),
+            control: Control::new(
+                [blue_team_key.clone(), green_team_key.clone()],
+                tasks.clone(),
+                #[cfg(feature = "http_client_control")]
+                session_id
+            ),
             simu,
             state: GCState::Nothing,
             teams: [

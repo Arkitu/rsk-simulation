@@ -245,7 +245,6 @@ mod server {
         );
 
         let app = Router::new()
-            .route("/", get(move || async { Html(html) }))
             .route(
                 "/api/wasm.js",
                 get(|| async { WithContentType("application/javascript", js) }),
@@ -271,6 +270,13 @@ mod server {
                     }
                 }),
             )
+            .route("/*path", get(move |Path(path): Path<String>| async move {
+                if !path.ends_with(".meta") {
+                    Ok(Html(html))
+                } else {
+                    Err(StatusCode::NOT_FOUND)
+                }
+            }))
             .fallback_service(serve_dir)
             .layer(middleware_stack);
 
@@ -281,6 +287,7 @@ mod server {
                     .unwrap_or(1334)
                     .to_string());
         }
+
         let addr: SocketAddr = address_string.parse().expect("Couldn't parse address");
 
         if options.https {
@@ -444,7 +451,7 @@ fn option(name: &str, default: &str) -> String {
     std::env::var(name).unwrap_or(default.to_owned())
 }
 
-pub fn main(wasm_file: String) -> Result<(), anyhow::Error> {
+pub async fn main(wasm_file: String) -> Result<(), anyhow::Error> {
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("info,app=debug,tower_http=debug,walrus=error"));
     tracing_subscriber::fmt::fmt()
@@ -482,8 +489,7 @@ pub fn main(wasm_file: String) -> Result<(), anyhow::Error> {
         pretty_size(output.wasm.len())
     );
 
-    let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(server::run_server(options, output))?;
+    server::run_server(options, output).await?;
 
     Ok(())
 }
