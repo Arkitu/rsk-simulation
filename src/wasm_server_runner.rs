@@ -98,10 +98,7 @@ mod server {
                     if error.kind() == ErrorKind::NotFound {
                         Ok(None)
                     } else {
-                        tracing::error!(
-                            "error reading file from \"{}\": {error}",
-                            path.display()
-                        );
+                        tracing::error!("error reading file from \"{}\": {error}", path.display());
                         Err(())
                     }
                 }
@@ -313,8 +310,7 @@ mod server {
             return Ok(module.clone());
         };
 
-        let (snippet, inline_snippet_name) =
-            path.split_once('/').ok_or("invalid snippet path")?;
+        let (snippet, inline_snippet_name) = path.split_once('/').ok_or("invalid snippet path")?;
         let index = inline_snippet_name
             .strip_prefix("inline")
             .and_then(|path| path.strip_suffix(".js"))
@@ -361,10 +357,10 @@ mod server {
             }
 
             match level {
-                "log" => {},//tracing::info!(target: "app", "{text}"),
+                "log" => {} //tracing::info!(target: "app", "{text}"),
 
                 "trace" => tracing::trace!(target: "app", "{text}"),
-                "debug" => {},//tracing::debug!(target: "app", "{text}"),
+                "debug" => {} //tracing::debug!(target: "app", "{text}"),
                 "info" => tracing::info!(target: "app", "{text}"),
                 "warn" => tracing::warn!(target: "app", "{text}"),
                 "error" => tracing::error!(target: "app", "{text}"),

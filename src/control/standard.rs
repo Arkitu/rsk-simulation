@@ -1,4 +1,7 @@
-use std::{sync::{Arc, Mutex}, thread};
+use std::{
+    sync::{Arc, Mutex},
+    thread,
+};
 
 use serde_json::Value;
 use zmq::{Context, Socket};
@@ -9,12 +12,12 @@ use super::CtrlRes;
 
 pub struct Control {
     ctrl_thread: thread::JoinHandle<()>,
-    state_socket: Socket
+    state_socket: Socket,
 }
 impl Control {
     pub fn new(keys: [String; 2], tasks: Arc<Mutex<[Option<RobotTask>; 4]>>) -> Self {
         let ctx = Context::new();
-        
+
         let state_socket = ctx.socket(zmq::PUB).unwrap();
         state_socket.bind("tcp://*:7557").unwrap();
 
@@ -26,7 +29,8 @@ impl Control {
                 loop {
                     let req = ctrl_socket.recv_bytes(0).unwrap();
                     let mut res = CtrlRes::UnknownError;
-                    let (key, team, number, cmd) : (String, String, u8, Vec<Value>) = serde_json::from_slice(&req).unwrap();
+                    let (key, team, number, cmd): (String, String, u8, Vec<Value>) =
+                        serde_json::from_slice(&req).unwrap();
                     match team.as_str() {
                         "blue" | "green" => {
                             let num = (team == "green") as usize;
@@ -39,7 +43,7 @@ impl Control {
                                     ("blue", 2) => Some(Robot::Blue2),
                                     ("green", 1) => Some(Robot::Green1),
                                     ("green", 2) => Some(Robot::Green2),
-                                    _ => None
+                                    _ => None,
                                 } {
                                     let mut tasks = tasks.lock().unwrap();
                                     let mut preempted = false;
@@ -54,32 +58,40 @@ impl Control {
                                             4 => match &cmd[0] {
                                                 Value::String(c) => match c.as_str() {
                                                     "control" => {
-                                                        tasks[r as usize] = Some(RobotTask::Control {
-                                                            x: cmd[1].as_f64().unwrap_or(0.) as f32,
-                                                            y: cmd[2].as_f64().unwrap_or(0.) as f32,
-                                                            r: cmd[3].as_f64().unwrap_or(0.) as f32
-                                                        });
+                                                        tasks[r as usize] =
+                                                            Some(RobotTask::Control {
+                                                                x: cmd[1].as_f64().unwrap_or(0.)
+                                                                    as f32,
+                                                                y: cmd[2].as_f64().unwrap_or(0.)
+                                                                    as f32,
+                                                                r: cmd[3].as_f64().unwrap_or(0.)
+                                                                    as f32,
+                                                            });
                                                         res = CtrlRes::Ok;
-                                                    },
-                                                    _ => res = CtrlRes::UnknownCommand
+                                                    }
+                                                    _ => res = CtrlRes::UnknownCommand,
                                                 },
-                                                _ => res = CtrlRes::UnknownCommand
+                                                _ => res = CtrlRes::UnknownCommand,
                                             },
-                                            _ => res = CtrlRes::UnknownCommand
+                                            _ => res = CtrlRes::UnknownCommand,
                                         }
                                     }
                                 } else {
                                     res = CtrlRes::UnknownRobot(team, number);
                                 }
                             }
-                        },
+                        }
                         "ball" => todo!(),
-                        _ => {dbg!(key, team, number, cmd);}
+                        _ => {
+                            dbg!(key, team, number, cmd);
+                        }
                     }
-                    ctrl_socket.send(serde_json::to_vec(&res).unwrap(), 0).unwrap();
+                    ctrl_socket
+                        .send(serde_json::to_vec(&res).unwrap(), 0)
+                        .unwrap();
                 }
             }),
-            state_socket
+            state_socket,
         }
     }
     /// Send new game state to client

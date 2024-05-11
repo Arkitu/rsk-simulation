@@ -51,7 +51,7 @@ fn setup(
         texture: asset_server.load("field.jpg"),
         transform: Transform {
             translation: Vec3::new(0., 0., 0.),
-            scale: Vec3::splat(CARPET.0  as f32 / FIELD_IMG.0),
+            scale: Vec3::splat(CARPET.0 as f32 / FIELD_IMG.0),
             ..Default::default()
         },
         ..default()
@@ -64,15 +64,20 @@ fn setup(
                 radius: BALL_RADIUS as f32,
             })),
             material: color_materials.add(Color::rgb_u8(247, 107, 49)),
-            transform: Transform::from_xyz(DEFAULT_BALL_POS.x  as f32, DEFAULT_BALL_POS.y  as f32, 1.),
+            transform: Transform::from_xyz(
+                DEFAULT_BALL_POS.x as f32,
+                DEFAULT_BALL_POS.y as f32,
+                1.,
+            ),
             ..default()
         },
         Ball,
     ));
 
     // Spawn the robots
-    let hexagon = Mesh2dHandle(meshes.add(RegularPolygon::new(ROBOT_RADIUS  as f32, 6)));
-    let rect = Mesh2dHandle(meshes.add(Rectangle::new(KICKER_THICKNESS as f32, ROBOT_RADIUS as f32))); //ROBOT_RADIUS as f32 * 0.866, ROBOT_RADIUS as f32 * 0.5, (ROBOT_RADIUS as f32 * 0.866)+(KICKER_THICKNESS as f32), ROBOT_RADIUS as f32 * 0.5)));
+    let hexagon = Mesh2dHandle(meshes.add(RegularPolygon::new(ROBOT_RADIUS as f32, 6)));
+    let rect =
+        Mesh2dHandle(meshes.add(Rectangle::new(KICKER_THICKNESS as f32, ROBOT_RADIUS as f32))); //ROBOT_RADIUS as f32 * 0.866, ROBOT_RADIUS as f32 * 0.5, (ROBOT_RADIUS as f32 * 0.866)+(KICKER_THICKNESS as f32), ROBOT_RADIUS as f32 * 0.5)));
 
     let blue = color_materials.add(Color::rgb_u8(0, 0, 255));
     let green = color_materials.add(Color::rgb_u8(0, 255, 0));
@@ -83,29 +88,28 @@ fn setup(
             Robot::Blue1 | Robot::Blue2 => blue.clone(),
             Robot::Green1 | Robot::Green2 => green.clone(),
         };
-        let robot = cmds.spawn((
-            MaterialMesh2dBundle {
-                mesh: hexagon.clone(),
-                material,
-                transform: Transform::from_xyz(pos.x as f32, pos.y as f32, 1.),
-                ..default()
-            },
-            r
-        )).with_children(|parent| {
-            parent.spawn(MaterialMesh2dBundle {
-                mesh: rect.clone(),
-                material: grey.clone(),
-                transform: Transform::from_xyz(ROBOT_RADIUS as f32 * 0.866, 0., 0.1),
-                ..default()
+        let robot = cmds
+            .spawn((
+                MaterialMesh2dBundle {
+                    mesh: hexagon.clone(),
+                    material,
+                    transform: Transform::from_xyz(pos.x as f32, pos.y as f32, 1.),
+                    ..default()
+                },
+                r,
+            ))
+            .with_children(|parent| {
+                parent.spawn(MaterialMesh2dBundle {
+                    mesh: rect.clone(),
+                    material: grey.clone(),
+                    transform: Transform::from_xyz(ROBOT_RADIUS as f32 * 0.866, 0., 0.1),
+                    ..default()
+                });
             });
-        });
     }
 }
 
-fn update_gs(
-    mut gc: NonSendMut<BevyGC>,
-    mut gs: ResMut<BevyGameState>
-) {
+fn update_gs(mut gc: NonSendMut<BevyGC>, mut gs: ResMut<BevyGameState>) {
     gc.0.step();
     gs.0 = gc.0.get_game_state();
 }
@@ -128,7 +132,15 @@ fn move_objects(
             Robot::Green1 => &gs.markers.green1,
             Robot::Green2 => &gs.markers.green2,
         };
-        *pos = Transform::from_xyz(new_pos.position.x as f32, new_pos.position.y as f32, 1.).looking_to(Vec3::ZERO, Vec3::new((new_pos.orientation + (PI/2.)).cos() as f32, (new_pos.orientation + (PI/2.)).sin() as f32, 0.));
+        *pos = Transform::from_xyz(new_pos.position.x as f32, new_pos.position.y as f32, 1.)
+            .looking_to(
+                Vec3::ZERO,
+                Vec3::new(
+                    (new_pos.orientation + (PI / 2.)).cos() as f32,
+                    (new_pos.orientation + (PI / 2.)).sin() as f32,
+                    0.,
+                ),
+            );
     }
 }
 
@@ -155,10 +167,15 @@ fn select_dragging(
             }
             #[cfg(feature = "async")]
             {
-                gc.0.find_entity_at_rc(cursor_to_simu(position), dragging.0.clone(), Some(gc.0.get_ball_handle()));
+                gc.0.find_entity_at_rc(
+                    cursor_to_simu(position),
+                    dragging.0.clone(),
+                    Some(gc.0.get_ball_handle()),
+                );
             }
         }
-    } else if !buttons.pressed(MouseButton::Left) { // better in async because find_entity_at_rc can update dragging after mouse release
+    } else if !buttons.pressed(MouseButton::Left) {
+        // better in async because find_entity_at_rc can update dragging after mouse release
         #[cfg(not(feature = "async"))]
         {
             *dragging = Dragging(None);
@@ -189,17 +206,17 @@ fn update_dragging(
     }
 }
 
-fn reset(
-    mut gc: NonSendMut<BevyGC>,
-    keys: Res<ButtonInput<KeyCode>>
-) {
+fn reset(mut gc: NonSendMut<BevyGC>, keys: Res<ButtonInput<KeyCode>>) {
     if keys.just_pressed(KeyCode::KeyR) {
         gc.0.reset();
     }
 }
 
 fn cursor_to_simu(pos: Vec2) -> Point<f64> {
-    Point::new((pos.x / WINDOW_SCALE) as f64 - (CARPET.0/2.), -((pos.y / WINDOW_SCALE) as f64 - (CARPET.1/2.)))
+    Point::new(
+        (pos.x / WINDOW_SCALE) as f64 - (CARPET.0 / 2.),
+        -((pos.y / WINDOW_SCALE) as f64 - (CARPET.1 / 2.)),
+    )
 }
 
 pub struct BevyGUI;
@@ -207,30 +224,28 @@ impl GUITrait for BevyGUI {
     fn run(gc: GC) {
         let gs = gc.get_game_state();
         let mut app = App::new();
-        app.add_plugins(DefaultPlugins
-                .set(WindowPlugin {
-                    primary_window: Some(Window {
-                        title: "RSK Simulator".to_string(),
-                        resolution: WindowResolution::new(
-                            CARPET.0 as f32 * WINDOW_SCALE,
-                            CARPET.1 as f32 * WINDOW_SCALE,
-                        ),
-                        ..default()
-                    }),
-                    ..default()
-                })
-            )
-            .insert_resource(Time::<Fixed>::from_seconds(DT as f64))
-            .insert_resource(BevyGameState(gs))
-            .add_systems(Startup, setup)
-            .add_systems(FixedUpdate, update_gs)
-            .add_systems(Update, move_objects)
-            .add_systems(Update, select_dragging)
-            .add_systems(Update, update_dragging)
-            .add_systems(Update, reset)
-            // BevyGC and Dragging are NonSend with http_client_gc to it's simpler if they always are
-            .insert_non_send_resource(BevyGC(gc))
-            .insert_non_send_resource(Dragging::default());
+        app.add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "RSK Simulator".to_string(),
+                resolution: WindowResolution::new(
+                    CARPET.0 as f32 * WINDOW_SCALE,
+                    CARPET.1 as f32 * WINDOW_SCALE,
+                ),
+                ..default()
+            }),
+            ..default()
+        }))
+        .insert_resource(Time::<Fixed>::from_seconds(DT as f64))
+        .insert_resource(BevyGameState(gs))
+        .add_systems(Startup, setup)
+        .add_systems(FixedUpdate, update_gs)
+        .add_systems(Update, move_objects)
+        .add_systems(Update, select_dragging)
+        .add_systems(Update, update_dragging)
+        .add_systems(Update, reset)
+        // BevyGC and Dragging are NonSend with http_client_gc to it's simpler if they always are
+        .insert_non_send_resource(BevyGC(gc))
+        .insert_non_send_resource(Dragging::default());
 
         app.run()
     }

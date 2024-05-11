@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
-use rapier2d_f64::prelude::*;
 use crate::game_state::{GameState, Robot};
+use rapier2d_f64::prelude::*;
 
 #[cfg(feature = "standard_gc")]
 mod standard;
@@ -10,7 +10,9 @@ mod standard;
 mod http_client;
 
 #[cfg(all(feature = "standard_gc", feature = "http_client_gc"))]
-compile_error!("Multiple game controller features enabled. You can only enable one game controller feature.");
+compile_error!(
+    "Multiple game controller features enabled. You can only enable one game controller feature."
+);
 
 #[cfg(feature = "standard_gc")]
 pub use standard::GC;

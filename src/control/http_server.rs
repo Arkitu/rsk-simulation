@@ -20,7 +20,8 @@ impl Control {
 
         let ctx = Context::new();
 
-        let mut server = websocket::server::sync::Server::bind(format!("127.0.0.1:{}", WS_PORT)).unwrap();
+        let mut server =
+            websocket::server::sync::Server::bind(format!("127.0.0.1:{}", WS_PORT)).unwrap();
         while let Ok(stream) = server.accept() {
             info!(target: "server_ws", "Incoming connection");
             let stream = stream.accept().unwrap();
@@ -38,35 +39,31 @@ impl Control {
 
                 for msg in listener.incoming_messages() {
                     match msg {
-                        Ok(OwnedMessage::Binary(bits)) => {
-                            match bitcode::deserialize(&bits) {
-                                Ok(ClientMsg::GameState(gs)) => {
-                                    let json = serde_json::to_string(&gs).unwrap();
-                                    if let Err(e) = state_socket.send(&json, 0) {
-                                        error!(target: "ws_server", "Error when sending msg : {}", e);
-                                        break
-                                    }
-                                },
-                                Ok(ClientMsg::CtrlRes(res)) => {
-                                    if let Err(e) = res_sender.send(res) {
-                                        error!(target: "ws_server", "Error when sending msg : {}", e);
-                                        break
-                                    }
+                        Ok(OwnedMessage::Binary(bits)) => match bitcode::deserialize(&bits) {
+                            Ok(ClientMsg::GameState(gs)) => {
+                                let json = serde_json::to_string(&gs).unwrap();
+                                if let Err(e) = state_socket.send(&json, 0) {
+                                    error!(target: "ws_server", "Error when sending msg : {}", e);
+                                    break;
                                 }
-                                Err(e) => {
-                                    error!(target: "ws_server", "Error when deserializing msg : {}", e);
-                                    break
+                            }
+                            Ok(ClientMsg::CtrlRes(res)) => {
+                                if let Err(e) = res_sender.send(res) {
+                                    error!(target: "ws_server", "Error when sending msg : {}", e);
+                                    break;
                                 }
+                            }
+                            Err(e) => {
+                                error!(target: "ws_server", "Error when deserializing msg : {}", e);
+                                break;
                             }
                         },
                         Err(e) => {
                             error!(target: "server_ws", "{:?}", e);
-                            break
-                        },
-                        Ok(OwnedMessage::Close(_)) => {
-                            break
+                            break;
                         }
-                        _ => unimplemented!()
+                        Ok(OwnedMessage::Close(_)) => break,
+                        _ => unimplemented!(),
                     }
                 }
 
@@ -81,12 +78,12 @@ impl Control {
                     let req = ctrl_socket.recv_bytes(0).unwrap();
                     if let Err(e) = sender.send_message(&Message::binary(req)) {
                         error!(target: "ws_server", "Error when sending msg : {}", e);
-                        break
+                        break;
                     }
                     let res = res_receiver.recv().unwrap();
                     if let Err(e) = ctrl_socket.send(res, 0) {
                         error!(target: "ws_server", "Error when sending msg : {}", e);
-                        break
+                        break;
                     }
                 }
             });

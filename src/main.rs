@@ -25,7 +25,13 @@ fn main() {
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
     }
 
-    let mut gc = game_controller::GC::new("".to_string(), "".to_string(), "".to_string(), "".to_string(), false);
+    let mut gc = game_controller::GC::new(
+        "".to_string(),
+        "".to_string(),
+        "".to_string(),
+        "".to_string(),
+        false,
+    );
 
     #[cfg(feature = "gui")]
     {

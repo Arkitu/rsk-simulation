@@ -11,7 +11,7 @@ pub mod alternative {
     pub enum ServerMsg {
         Initial(InitialMsg),
         GameState(GameState),
-        FindEntityAtRes(Option<RigidBodyHandle>)
+        FindEntityAtRes(Option<RigidBodyHandle>),
     }
 
     #[derive(Debug)]
@@ -19,7 +19,7 @@ pub mod alternative {
     pub enum ClientMsg {
         TeleportEntity(RigidBodyHandle, Point<f64>, Option<f64>),
         FindEntityAt(Point<f64>),
-        Reset
+        Reset,
     }
 
     #[derive(Debug)]
@@ -29,7 +29,7 @@ pub mod alternative {
         pub blue1: RigidBodyHandle,
         pub blue2: RigidBodyHandle,
         pub green1: RigidBodyHandle,
-        pub green2: RigidBodyHandle
+        pub green2: RigidBodyHandle,
     }
 }
 
@@ -41,6 +41,6 @@ pub mod default {
     #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     pub enum ClientMsg {
         GameState(GameState),
-        CtrlRes(Vec<u8>)
+        CtrlRes(Vec<u8>),
     }
 }

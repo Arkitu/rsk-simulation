@@ -12,7 +12,7 @@ use super::CtrlRes;
 const HOST: &'static str = "127.0.0.1:1234";
 
 pub struct Control {
-    socket: EventClient
+    socket: EventClient,
 }
 impl Control {
     pub fn new(keys: [String; 2], tasks: Rc<RefCell<[Option<RobotTask>; 4]>>) -> Self {
@@ -25,7 +25,7 @@ impl Control {
         socket.set_on_message(Some(Box::new(move |socket, msg| {
             let req = match msg {
                 Message::Binary(bits) => bits,
-                Message::Text(string) => string.into_bytes()
+                Message::Text(string) => string.into_bytes(),
             };
             let mut res = CtrlRes::UnknownError;
             match serde_json::from_slice::<(String, String, u8, Vec<Value>)>(&req) {
@@ -41,7 +41,7 @@ impl Control {
                                 ("blue", 2) => Some(Robot::Blue2),
                                 ("green", 1) => Some(Robot::Green1),
                                 ("green", 2) => Some(Robot::Green2),
-                                _ => None
+                                _ => None,
                             } {
                                 let mut tasks = tasks.borrow_mut();
                                 let mut preempted = false;
@@ -59,43 +59,43 @@ impl Control {
                                                     tasks[r as usize] = Some(RobotTask::Control {
                                                         x: cmd[1].as_f64().unwrap_or(0.) as f32,
                                                         y: cmd[2].as_f64().unwrap_or(0.) as f32,
-                                                        r: cmd[3].as_f64().unwrap_or(0.) as f32
+                                                        r: cmd[3].as_f64().unwrap_or(0.) as f32,
                                                     });
                                                     res = CtrlRes::Ok;
-                                                },
-                                                _ => res = CtrlRes::UnknownCommand
+                                                }
+                                                _ => res = CtrlRes::UnknownCommand,
                                             },
-                                            _ => res = CtrlRes::UnknownCommand
+                                            _ => res = CtrlRes::UnknownCommand,
                                         },
-                                        _ => res = CtrlRes::UnknownCommand
+                                        _ => res = CtrlRes::UnknownCommand,
                                     }
                                 }
                             } else {
                                 res = CtrlRes::UnknownRobot(team, number);
                             }
                         }
-                    },
+                    }
                     "ball" => todo!(),
-                    _ => {dbg!(key, team, number, cmd);}
-                }
+                    _ => {
+                        dbg!(key, team, number, cmd);
+                    }
+                },
                 _ => {}
             }
             let res = serde_json::to_vec(&res).unwrap();
-            socket.send_binary(
-                bitcode::serialize(&ClientMsg::CtrlRes(res)).unwrap()
-            ).unwrap();
+            socket
+                .send_binary(bitcode::serialize(&ClientMsg::CtrlRes(res)).unwrap())
+                .unwrap();
         })));
 
-        Self {
-            socket
-        }
+        Self { socket }
     }
     /// Send new game state to client
     pub fn publish(&self, gs: GameState) {
         if let ConnectionStatus::Connected = self.socket.status.borrow().clone() {
-            self.socket.send_binary(
-                bitcode::serialize(&ClientMsg::GameState(gs)).unwrap()
-            ).unwrap();
+            self.socket
+                .send_binary(bitcode::serialize(&ClientMsg::GameState(gs)).unwrap())
+                .unwrap();
         }
     }
 }

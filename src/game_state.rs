@@ -96,10 +96,22 @@ pub struct Markers {
 impl Default for Markers {
     fn default() -> Self {
         Self {
-            blue1: Pose { position: DEFAULT_ROBOTS_POS[0], orientation: 0. },
-            blue2: Pose { position: DEFAULT_ROBOTS_POS[1], orientation: 0. },
-            green1: Pose { position: DEFAULT_ROBOTS_POS[2], orientation: PI },
-            green2: Pose { position: DEFAULT_ROBOTS_POS[3], orientation: PI }
+            blue1: Pose {
+                position: DEFAULT_ROBOTS_POS[0],
+                orientation: 0.,
+            },
+            blue2: Pose {
+                position: DEFAULT_ROBOTS_POS[1],
+                orientation: 0.,
+            },
+            green1: Pose {
+                position: DEFAULT_ROBOTS_POS[2],
+                orientation: PI,
+            },
+            green2: Pose {
+                position: DEFAULT_ROBOTS_POS[3],
+                orientation: PI,
+            },
         }
     }
 }
@@ -120,7 +132,7 @@ impl Default for RefereeTeamRobot {
             penalized_remaining: None,
             penalized_reason: None,
             preempted: false,
-            preemption_reasons: Vec::new()
+            preemption_reasons: Vec::new(),
         }
     }
 }
@@ -146,7 +158,7 @@ impl Default for RefereeTeam {
             name: "".to_string(),
             score: 0,
             x_positive: true,
-            robots: RefereeTeamRobots::default()
+            robots: RefereeTeamRobots::default(),
         }
     }
 }
@@ -177,7 +189,7 @@ impl Default for Referee {
             halftime_is_running: false,
             timer: 0,
             game_state_msg: "Game is ready to start".to_string(),
-            teams: RefereeTeams::default()
+            teams: RefereeTeams::default(),
         }
     }
 }
@@ -195,7 +207,7 @@ impl Default for GameState {
         Self {
             ball: None,
             markers: Markers::default(),
-            referee: Referee::default()
+            referee: Referee::default(),
         }
     }
 }
@@ -221,14 +233,13 @@ pub enum RobotTask {
     Penalty {
         reason: &'static str,
         // Frame number when the penalty started
-        start: usize
+        start: usize,
     },
     Control {
         x: f32,
         y: f32,
-        r: f32
-    }
-    // TODO
+        r: f32,
+    }, // TODO
 }
 impl RobotTask {
     pub fn preemption_reason(&self, robot: Robot) -> Option<String> {
@@ -239,7 +250,7 @@ impl RobotTask {
                 Robot::Green1 => Some("penalty-green1".to_string()),
                 Robot::Green2 => Some("penalty-green2".to_string()),
             },
-            &RobotTask::Control { .. } => None
+            &RobotTask::Control { .. } => None,
         }
     }
 }

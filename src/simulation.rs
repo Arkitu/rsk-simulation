@@ -40,8 +40,8 @@ impl Simulation {
                 .position(DEFAULT_BALL_POS.into())
                 .linear_damping(BALL_DAMPING)
                 .can_sleep(false)
-                .dominance_group(-1)
-            );
+                .dominance_group(-1),
+        );
         colliders.insert_with_parent(
             ColliderBuilder::ball(BALL_RADIUS)
                 .restitution(BALL_RESTITUTION)
@@ -51,28 +51,34 @@ impl Simulation {
         );
 
         // Create the robots
-        let robots = std::array::from_fn(|i| bodies.insert(
-            RigidBodyBuilder::dynamic()
-                .position(DEFAULT_ROBOTS_POS[i].into())
-                .rotation(DEFAULT_ROBOTS_ANGLE[i])
-                .linear_damping(ROBOT_DAMPING)
-                .angular_damping(ROBOT_ANGULAR_DAMPING)
-                .can_sleep(false)
-        ));
+        let robots = std::array::from_fn(|i| {
+            bodies.insert(
+                RigidBodyBuilder::dynamic()
+                    .position(DEFAULT_ROBOTS_POS[i].into())
+                    .rotation(DEFAULT_ROBOTS_ANGLE[i])
+                    .linear_damping(ROBOT_DAMPING)
+                    .angular_damping(ROBOT_ANGULAR_DAMPING)
+                    .can_sleep(false),
+            )
+        });
         for robot in robots.iter() {
             const r: f64 = ROBOT_RADIUS - 0.001;
             colliders.insert_with_parent(
                 // Collider is a regular hexagon with radius ROBOT_RADIUS
-                ColliderBuilder::round_convex_hull(&[
-                    point![0., r],
-                    point![r * 0.866, r * 0.5],
-                    point![r * 0.866, -r * 0.5],
-                    point![0., -r],
-                    point![-r * 0.866, -r * 0.5],
-                    point![-r * 0.866, r * 0.5],
-                ], 0.001).unwrap()
-                    .mass(ROBOT_MASS)
-                    .restitution(ROBOT_RESTITUTION),
+                ColliderBuilder::round_convex_hull(
+                    &[
+                        point![0., r],
+                        point![r * 0.866, r * 0.5],
+                        point![r * 0.866, -r * 0.5],
+                        point![0., -r],
+                        point![-r * 0.866, -r * 0.5],
+                        point![-r * 0.866, r * 0.5],
+                    ],
+                    0.001,
+                )
+                .unwrap()
+                .mass(ROBOT_MASS)
+                .restitution(ROBOT_RESTITUTION),
                 *robot,
                 &mut bodies,
             );
@@ -142,7 +148,9 @@ impl Simulation {
     pub fn teleport_entity(&mut self, entity: RigidBodyHandle, pos: Point<f64>, r: Option<f64>) {
         let body = &mut self.bodies[entity];
         let mut iso: Isometry2<f64> = pos.into();
-        iso.rotation = r.map(|r| Rotation::new(r)).unwrap_or_else(|| *body.rotation());
+        iso.rotation = r
+            .map(|r| Rotation::new(r))
+            .unwrap_or_else(|| *body.rotation());
         body.set_position(iso, true);
     }
     pub fn teleport_ball(&mut self, pos: Point<f64>) {
@@ -160,7 +168,11 @@ impl Simulation {
         }
         self.teleport_ball(DEFAULT_BALL_POS);
         for r in Robot::all() {
-            self.teleport_robot(r, DEFAULT_ROBOTS_POS[r as usize], Some(DEFAULT_ROBOTS_ANGLE[r as usize]));
+            self.teleport_robot(
+                r,
+                DEFAULT_ROBOTS_POS[r as usize],
+                Some(DEFAULT_ROBOTS_ANGLE[r as usize]),
+            );
         }
     }
 }

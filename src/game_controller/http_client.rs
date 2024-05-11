@@ -1,12 +1,14 @@
 use std::{cell::RefCell, collections::VecDeque, rc::Rc, time::Duration};
 
 /// Game controller that runs on a wasm client and communicates with the server via a websocket
-
-use crate::{game_state::{GameState, Robot}, http::alternative::{ClientMsg, ServerMsg}};
+use crate::{
+    game_state::{GameState, Robot},
+    http::alternative::{ClientMsg, ServerMsg},
+};
 use gloo_timers::future::sleep;
 use nalgebra::Point2;
-use tracing::{info, warn};
 use rapier2d_f64::dynamics::RigidBodyHandle;
+use tracing::{info, warn};
 use wasm_sockets::{EventClient, Message};
 
 const HOST: &'static str = "127.0.0.1:1234";
@@ -20,7 +22,7 @@ pub struct GC {
     green1: RigidBodyHandle,
     green2: RigidBodyHandle,
     /// Find entity at requests (yes it's ugly)
-    find_entity_at: Rc<RefCell<VecDeque<Rc<RefCell<Option<Option<RigidBodyHandle>>>>>>>
+    find_entity_at: Rc<RefCell<VecDeque<Rc<RefCell<Option<Option<RigidBodyHandle>>>>>>>,
 }
 impl GC {
     pub async fn new() -> Self {
@@ -30,19 +32,19 @@ impl GC {
         socket.set_on_connection(Some(Box::new(|socket| {
             info!("Socket connected");
         })));
-        
+
         let msg = Rc::new(RefCell::new(None));
         let msg_rc = msg.clone();
         socket.set_on_message(Some(Box::new(move |socket, msg| {
             let bits = match msg {
                 Message::Binary(bits) => bits,
-                Message::Text(string) => string.into_bytes()
+                Message::Text(string) => string.into_bytes(),
             };
             let msg: ServerMsg = match bitcode::deserialize(&bits) {
                 Ok(msg) => msg,
                 Err(e) => {
                     warn!("{}", e);
-                    return
+                    return;
                 }
             };
             if let ServerMsg::Initial(msg) = msg {
@@ -56,30 +58,35 @@ impl GC {
 
         let gs = Rc::new(RefCell::new(GameState::default()));
         let gs_rc = gs.clone();
-        let find_entity_at: Rc<RefCell<VecDeque<Rc<RefCell<Option<Option<RigidBodyHandle>>>>>>> = Rc::new(RefCell::new(VecDeque::new()));
+        let find_entity_at: Rc<RefCell<VecDeque<Rc<RefCell<Option<Option<RigidBodyHandle>>>>>>> =
+            Rc::new(RefCell::new(VecDeque::new()));
         let mut fia_rc = find_entity_at.clone();
         socket.set_on_message(Some(Box::new(move |socket, msg| {
             let msg_bits = match msg {
                 Message::Binary(bits) => bits,
-                Message::Text(string) => string.into_bytes()
+                Message::Text(string) => string.into_bytes(),
             };
             let msg: ServerMsg = match bitcode::deserialize(&msg_bits) {
                 Ok(msg) => msg,
                 Err(e) => {
                     warn!("{}", e);
-                    return
+                    return;
                 }
             };
             match msg {
-                ServerMsg::GameState(gs) => {gs_rc.replace(gs);},
+                ServerMsg::GameState(gs) => {
+                    gs_rc.replace(gs);
+                }
                 ServerMsg::FindEntityAtRes(res) => match (*fia_rc).borrow_mut().pop_front() {
-                    Some(rc) => {rc.replace(Some(res));},
+                    Some(rc) => {
+                        rc.replace(Some(res));
+                    }
                     None => {
                         warn!("Find entity response but no request");
-                        return
+                        return;
                     }
                 },
-                msg => warn!("Unknown msg : {:?}", msg)
+                msg => warn!("Unknown msg : {:?}", msg),
             }
         })));
 
@@ -91,13 +98,13 @@ impl GC {
             blue1: initial_msg.blue1,
             blue2: initial_msg.blue2,
             green1: initial_msg.green1,
-            green2: initial_msg.green2
+            green2: initial_msg.green2,
         }
         // let mut socket = PollingClient::new(&format!("ws://{}", HOST)).unwrap();
         // while socket.status() == ConnectionStatus::Connecting {
         //     // Wait for the socket to connect
         // }
-        // match socket.status() 
+        // match socket.status()
         // Self {
         //     socket,
         //     gs: GameState::default()
@@ -117,7 +124,7 @@ impl GC {
             Robot::Blue1 => self.blue1,
             Robot::Blue2 => self.blue2,
             Robot::Green1 => self.green1,
-            Robot::Green2 => self.green2
+            Robot::Green2 => self.green2,
         }
     }
     pub fn teleport_entity(&mut self, entity: RigidBodyHandle, pos: Point2<f64>, r: Option<f64>) {
@@ -125,7 +132,12 @@ impl GC {
         let msg_bits = bitcode::serialize(&msg).unwrap();
         self.socket.send_binary(msg_bits).unwrap();
     }
-    pub fn find_entity_at_rc(&self, pos: Point2<f64>, rc: Rc<RefCell<Option<RigidBodyHandle>>>, default: Option<RigidBodyHandle>) {
+    pub fn find_entity_at_rc(
+        &self,
+        pos: Point2<f64>,
+        rc: Rc<RefCell<Option<RigidBodyHandle>>>,
+        default: Option<RigidBodyHandle>,
+    ) {
         let msg = ClientMsg::FindEntityAt(pos);
         let msg_bits = bitcode::serialize(&msg).unwrap();
         self.socket.send_binary(msg_bits).unwrap();
@@ -138,7 +150,7 @@ impl GC {
             }
             rc.replace(match id.take().unwrap() {
                 Some(id) => Some(id),
-                None => default
+                None => default,
             });
         });
     }

@@ -18,7 +18,7 @@ compile_error!("Multiple GUI features enabled. You can only enable one GUI featu
 pub use bevy::BevyGUI as GUI;
 
 #[cfg(feature = "http_server_gui")]
-pub use http_server::GUI as GUI;
+pub use http_server::GUI;
 
 #[cfg(not(any(feature = "bevy_gui", feature = "http_server_gui")))]
 pub struct GUI;
