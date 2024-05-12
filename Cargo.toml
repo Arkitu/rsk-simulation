@@ -35,13 +35,12 @@ standard_control = [
     "control",
     "json",
     "dep:zmq",
-    "dep:uuid"
 ]
 http_server_control = [
     "control",
     "json",
     "bitcode",
-    "dep:zmq",
+    "dep:tmq",
     "dep:tokio-tungstenite",
     "wasm_server_runner",
     "default_http",
@@ -107,7 +106,7 @@ futures-util = { version = "0.3", optional = true }
 
 # Control
 zmq = { version = "0.10", optional = true }
-uuid = { version = "1.8", optional = true }
+tmq = { version = "0.4", optional = true }
 
 # serde
 serde = { version = "1.0", features = ["derive"], optional = true }

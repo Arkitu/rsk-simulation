@@ -3366,6 +3366,7 @@ dependencies = [
  "rcgen",
  "serde",
  "serde_json",
+ "tmq",
  "tokio",
  "tokio-tungstenite",
  "tower",
@@ -3374,7 +3375,6 @@ dependencies = [
  "tracing-subscriber",
  "tracing-wasm",
  "url",
- "uuid",
  "wasm-bindgen-cli-support",
  "wasm-bindgen-futures",
  "wasm-sockets",
@@ -3816,6 +3816,19 @@ name = "tinyvec_macros"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
+
+[[package]]
+name = "tmq"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "905dbcf73a013cf3c1e4a14053f376a73155ae6a1fb12cf80c55b51eb3bc0215"
+dependencies = [
+ "futures",
+ "log",
+ "thiserror",
+ "tokio",
+ "zmq",
+]
 
 [[package]]
 name = "tokio"

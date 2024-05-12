@@ -1,8 +1,10 @@
+use std::collections::VecDeque;
+
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
 use tracing::{error, info, warn};
-use zmq::Context;
+use tmq::{Context, Multipart};
 use futures_util::{SinkExt, StreamExt};
 
 use crate::http::{default::ClientMsg, WS_PORT};
@@ -21,8 +23,8 @@ impl Control {
         let ws = TcpListener::bind(format!("127.0.0.1:{}", WS_PORT)).await.expect("Can't create TcpListener");
 
         while let Ok((stream, _)) = ws.accept().await {
-            let state_socket = ctx.socket(zmq::PUB).unwrap();
-            let ctrl_socket = ctx.socket(zmq::REP).unwrap();
+            let mut state_socket = tmq::publish(&ctx).bind("tcp://*:7557").unwrap();
+            let ctrl_socket = tmq::reply(&ctx).bind("tcp://*:7558").unwrap();
             tokio::spawn(async move {
                 let addr = stream.peer_addr().unwrap();
                 info!(target:"ws", "New incoming connection : {}", addr);
@@ -31,9 +33,6 @@ impl Control {
 
                 let (res_sender, mut res_receiver) = mpsc::unbounded_channel();
 
-                state_socket.bind("tcp://*:7557").unwrap();
-                ctrl_socket.bind("tcp://*:7558").unwrap();
-
                 tokio::spawn(async move {
                     loop {
                         match ws_read.next().await.unwrap().unwrap() {
@@ -41,8 +40,8 @@ impl Control {
                                 match bitcode::deserialize(&bits) {
                                     Ok(ClientMsg::GameState(gs)) => {
                                         let json = serde_json::to_string(&gs).unwrap();
-                                        if let Err(e) = state_socket.send(&json, 0) {
-                                            error!(target: "ws", "Error when sending msg : {}", e);
+                                        if let Err(e) = state_socket.send(vec![&json]).await {
+                                            error!(target: "zmq", "Error when sending msg : {}", e);
                                             break
                                             // return Err(TError::ConnectionClosed)
                                         }
@@ -58,7 +57,7 @@ impl Control {
                                 }
                             },
                             Message::Close(_) => {
-                                warn!(target: "ws", "socket closed");
+                                info!(target: "ws", "socket closed");
                                 break
                                 // return Err(TError::ConnectionClosed)
                             },
@@ -102,16 +101,29 @@ impl Control {
                 // control thread
                 // forwards controls to the websocket
                 tokio::spawn(async move {
+                    let mut receiver = Some(ctrl_socket);
                     loop {
-                        let req = ctrl_socket.recv_bytes(0).unwrap();
-                        if let Err(e) = ws_write.send(Message::Binary(req)).await {
+                        let (mut multipart, sender) = receiver.take().unwrap().recv().await.unwrap();
+                        let msg = match multipart.len() {
+                            1 => multipart.pop_front().unwrap(),
+                            x => {
+                                error!(target: "zmq", "Received message with {} parts!", x);
+                                break
+                            }
+                        };
+                        if let Err(e) = ws_write.send(Message::Binary(msg.to_vec())).await {
                             error!(target: "ws", "Error when sending msg : {}", e);
                             break
                         };
                         let res = res_receiver.recv().await.unwrap();
-                        if let Err(e) = ctrl_socket.send(res, 0) {
-                            error!(target: "ctrl_socket", "Error when sending msg : {}", e);
-                            break
+                        match sender.send(Multipart(vec![res.into()].into())).await {
+                            Ok(r) => {
+                                receiver = Some(r);
+                            },
+                            Err(e) => {
+                                error!(target: "ctrl_socket", "Error when sending msg : {}", e);
+                                break
+                            }
                         }
                     }
                 });
