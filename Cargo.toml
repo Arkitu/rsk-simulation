@@ -11,7 +11,7 @@ http_server_gui = [
     "gui",
     "alternative_http",
     "bitcode",
-    "dep:websocket",
+    "dep:tokio-tungstenite",
     "wasm_server_runner"
 ]
 
@@ -42,10 +42,11 @@ http_server_control = [
     "json",
     "bitcode",
     "dep:zmq",
-    "dep:websocket",
+    "dep:tokio-tungstenite",
     "wasm_server_runner",
     "default_http",
-    "dep:tokio"
+    "dep:tokio",
+    "dep:futures-util"
 ]
 http_client_control = [
     "control",
@@ -102,6 +103,7 @@ bevy = { version = "0.13", default-features = false, features = [
 ], optional = true }
 url = { version = "2.5", optional = true }
 rand = { version = "0.8", optional = true }
+futures-util = { version = "0.3", optional = true }
 
 # Control
 zmq = { version = "0.10", optional = true }
@@ -113,7 +115,6 @@ serde_json = { version = "1.0", optional = true }
 bitcode = { version = "0.6", features = ["serde"], optional = true }
 
 # Web socket (server)
-websocket = { version = "0.27", default-features = false, features = ["async"], optional = true }
 tokio-tungstenite = { version = "0.21", optional = true }
 
 # Web socket (client)
@@ -135,7 +136,7 @@ axum-server = { version = "0.6", features = ["tls-rustls"], optional = true }
 axum-server-dual-protocol = { version = "0.6", optional = true }
 directories = { version = "5", optional = true }
 tower-http = { version = "0.5", features = ["compression-full", "fs", "set-header", "trace"], optional = true }
-tokio = { version = "1.37", default-features = false, features = ["rt-multi-thread"], optional = true }
+tokio = { version = "1.37", default-features = false, features = ["full"], optional = true }
 http = { version = "1.1", optional = true }
 tower = { version = "0.4", optional = true }
 fastrand = { version = "2.0", optional = true }

@@ -218,7 +218,7 @@ impl GUITrait for BevyGUI {
                         ..default()
                     }),
                     ..default()
-                })
+                }).disable::<LogPlugin>()
             )
             .insert_resource(Time::<Fixed>::from_seconds(DT as f64))
             .insert_resource(BevyGameState(gs))

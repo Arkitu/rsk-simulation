@@ -88,6 +88,7 @@ fn main() {
         url.set_path(&("/".to_string() + &Alphanumeric.sample_string(&mut rand::thread_rng(), 5)));
         info!("{:?}", url);
         location.set_href(url.as_str()).unwrap();
+        return
     }
 
     let mut session_id = url.path();

@@ -244,6 +244,14 @@ mod server {
             internal_server_error,
         );
 
+        let html_handler = move |Path(path): Path<String>| async move {
+            if !path.ends_with(".meta") {
+                Ok(Html(html))
+            } else {
+                Err(StatusCode::NOT_FOUND)
+            }
+        };
+
         let app = Router::new()
             .route(
                 "/api/wasm.js",
@@ -270,13 +278,13 @@ mod server {
                     }
                 }),
             )
-            .route("/*path", get(move |Path(path): Path<String>| async move {
-                if !path.ends_with(".meta") {
-                    Ok(Html(html))
-                } else {
-                    Err(StatusCode::NOT_FOUND)
-                }
-            }))
+            // .route(
+            //     "/",
+            //     get(move || async { Html(html.clone()) })
+            // )
+            // .fallback(handler)
+            .route("/*path", get(html_handler.clone()))
+            .route("/", get(move || html_handler(Path("".to_string()))))
             .fallback_service(serve_dir)
             .layer(middleware_stack);
 
