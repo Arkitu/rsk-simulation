@@ -18,7 +18,11 @@ impl Control {
     pub fn new(keys: [String; 2], tasks: Rc<RefCell<[Option<RobotTask>; 4]>>, session_id: &str) -> Self {
         let mut socket = EventClient::new(&format!("ws://{}/{}", HOST, session_id)).unwrap();
 
-        socket.set_on_connection(Some(Box::new(|socket| {
+        let sid = session_id.to_string();
+        socket.set_on_connection(Some(Box::new(move |socket| {
+            socket.send_binary(
+                bitcode::serialize(&ClientMsg::InitialMsg(sid.clone())).unwrap()
+            ).unwrap();
             info!("Socket connected");
         })));
 

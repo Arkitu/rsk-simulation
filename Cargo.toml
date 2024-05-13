@@ -36,7 +36,7 @@ standard_control = [
     "json",
     "dep:zmq",
 ]
-http_server_control = [
+http_server = [
     "control",
     "json",
     "bitcode",
@@ -86,12 +86,12 @@ alternative_http_server = ["standard_control", "standard_gc", "http_server_gui"]
 alternative_http_client = ["http_client_gc", "bevy_gui"]
 
 # server: control / client: simu + gc + gui
-default_http_server = ["http_server_control"]
+default_http_server = ["http_server"]
 default_http_client = ["http_client_control", "standard_gc", "bevy_gui"]
 
 default_native = ["standard_control", "standard_gc", "bevy_gui"]
 
-default = ["default_http_server"]
+default = ["default_http_client"]
 
 [dependencies]
 rapier2d-f64 = { version = "0.19", features = ["simd-stable"] }

@@ -73,12 +73,6 @@ mod standard;
 #[cfg(feature = "standard_control")]
 pub use standard::Control;
 
-#[cfg(feature = "http_server_control")]
-mod http_server;
-
-#[cfg(feature = "http_server_control")]
-pub use http_server::Control;
-
 #[cfg(feature = "http_client_control")]
 mod http_client;
 

@@ -40,6 +40,8 @@ pub mod default {
     #[derive(Debug)]
     #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
     pub enum ClientMsg {
+        // (id)
+        InitialMsg(String),
         GameState(GameState),
         CtrlRes(Vec<u8>)
     }
