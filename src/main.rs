@@ -71,6 +71,7 @@ async fn main() {
     use std::{collections::HashMap, net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4}, sync::Arc, time::Duration};
 
     use futures_util::{future::{select, Either}, SinkExt, StreamExt};
+    use serde_json::Value;
     use tmq::{publish::Publish, request_reply::RequestReceiver, Context, Multipart};
     use tokio::{io::{AsyncReadExt, AsyncWriteExt}, join, net::{TcpListener, TcpSocket}, sync::{mpsc, Mutex}, time::Instant};
     use tokio_tungstenite::tungstenite::Message;
@@ -80,14 +81,15 @@ async fn main() {
     struct Session {
         id: String,
         ws: SocketAddr,
-        // [ctrl, state]
-        clients: Vec<[SocketAddr; 2]>,
+        ctrls: Vec<SocketAddr>,
+        states: Vec<SocketAddr>,
         ctrl_port: u16,
         state_port: u16
     }
 
     struct Sessions {
-        inner: Vec<Session>,
+        inner: Vec<Arc<Mutex<Session>>>,
+        lobby: Session,
         available_ports: Vec<u16>
     }
     impl Sessions {
@@ -97,44 +99,35 @@ async fn main() {
                 self.available_ports.pop().ok_or(())?,
                 self.available_ports.pop().ok_or(())?
             );
-            self.inner.push(Session {
+            self.inner.push(Arc::new(Mutex::new(Session {
                 id,
                 ws,
-                clients: Vec::new(),
+                ctrls: Vec::new(),
+                states: Vec::new(),
                 ctrl_port: ports.0,
                 state_port: ports.1
-            });
+            })));
             Ok(ports)
         }
         fn find_with_addr(&self, addr: &SocketAddr) -> Option<&Session> {
-            for s in self.inner.iter() {
-                if &s.ws == addr {
-                    return Some(s);
-                }
-                for c in s.clients.iter() {
-                    for a in c.iter() {
-                        if a == addr {
-                            return Some(s);
-                        }
-                    }
-                }
-            }
-            None
+            self.inner.iter().find(|s| {
+                let s = s.lock().await;
+                &s.ws == addr || s.ctrls.contains(addr) || s.states.contains(addr)
+            })
         }
         fn find_with_ip(&self, ip: &IpAddr) -> Option<&Session> {
-            for s in self.inner.iter() {
-                if &s.ws.ip() == ip {
-                    return Some(s)
-                }
-                for c in s.clients.iter() {
-                    for a in c.iter() {
-                        if &a.ip() == ip {
-                            return Some(s);
-                        }
-                    }
-                }
-            }
-            None
+            self.inner.iter().find(|s| {
+                &s.ws.ip() == ip || s.ctrls.iter().any(|a| &a.ip() == ip) || s.states.iter().any(|a| &a.ip() == ip)
+            })
+        }
+        fn find_with_id(&self, id: &str) -> Option<&Session> {
+            self.inner.iter().find(|s| {
+                &s.id == id
+            })
+        }
+        /// Session with id="" that serves as a lobby for the sockets that are not yet matched with their session
+        const fn lobby(&self) -> &Session {
+            &self.lobby
         }
     }
 
@@ -145,7 +138,15 @@ async fn main() {
 
     let sessions: Arc<Mutex<Sessions>> = Arc::new(Mutex::new(Sessions {
         inner: Vec::new(),
-        available_ports: (10200..10500).collect() // Arbitrary
+        lobby: Session {
+            id: "".to_string(),
+            ws: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0),
+            ctrls: Vec::new(),
+            states: Vec::new(),
+            ctrl_port: 10200,
+            state_port: 10201
+        },
+        available_ports: (10202..10500).collect() // Arbitrary
     }));
     
     // Redirect tcp messages to the good session
@@ -164,6 +165,7 @@ async fn main() {
     let so = state_orphan.clone();
     let p = pairs.clone();
     let ss = sessions.clone();
+    let so = state_orphan.clone();
     tokio::spawn(async move {
         while let Ok((mut stream, addr)) = ctrl.accept().await {
             dbg!("ctrl", addr);
@@ -195,24 +197,29 @@ async fn main() {
                     let state_socket = Arc::new(Mutex::new(None::<(u16, Publish)>));
                     // Wait for the state socket
                     let state_s = state_socket.clone();
+                    let so = so.clone();
                     tokio::spawn(async move {
                         let start = Instant::now();
                         loop {
                             if start.elapsed() > Duration::from_millis(3000) {
-                                state_s.lock().await
-                                break
+                                // Poison state_socket to crash pair thread
+                                let _lock = state_s.lock().await;
+                                panic!("Timeout for state socket detection (this is a normal error)");
                             }
-                            if let Some(socket) = state_orphan.lock().await.take() {
+                            if let Some(socket) = so.lock().await.take() {
                                 *state_s.lock().await = Some(socket);
                                 break
                             }
                         }
                     });
                     // Match the socket with a session
-                    let mut session = ss.lock().await.find_with_ip()
+                    let mut session = ss.lock().await.find_with_ip(&addr.ip()).unwrap_or(ss.lock().await.lobby());
+                    let ss = ss.clone();
                     tokio::spawn(async move {
-                        
-                    })
+                        let (mut msg, sender) = socket.recv().await.unwrap();
+                        let (key, _, _, _) : (String, String, u8, Vec<Value>) = serde_json::from_slice(&msg.pop_front().unwrap()).unwrap();
+                        session = &ss.lock().await.find_with_id(&key).unwrap();
+                    });
                 },
                 Some((state_port, state_socket)) => {
                     
