@@ -8,6 +8,7 @@ pub struct Simulation {
     pub goals: [ColliderHandle; 2],
     pub ball: RigidBodyHandle,
     pub robots: [RigidBodyHandle; 4],
+    pub kickers: [RigidBodyHandle; 4],
     gravity: Vector<f64>,
     integration_parameters: IntegrationParameters,
     physics_pipeline: PhysicsPipeline,
@@ -78,12 +79,29 @@ impl Simulation {
             );
         }
 
+        // Create kickers
+        let kickers = std::array::from_fn(|i| bodies.insert(
+            RigidBodyBuilder::dynamic()
+                .position(DEFAULT_ROBOTS_POS[i].into())
+                .rotation(DEFAULT_ROBOTS_ANGLE[i])
+                .can_sleep(false)
+        ));
+        for kicker in kickers.iter() {
+            colliders.insert_with_parent(
+                ColliderBuilder::cuboid(KICKER_THICKNESS, ROBOT_RADIUS)
+                    .position(Point::new(ROBOT_RADIUS + (KICKER_THICKNESS/2.), 0.).into()),
+                *kicker,
+                &mut bodies
+            );
+        }
+
         Self {
             bodies,
             colliders,
             goals,
             ball,
             robots,
+            kickers,
             gravity: vector![0.0, 0.0],
             integration_parameters: IntegrationParameters {
                 dt: DT,
@@ -150,6 +168,9 @@ impl Simulation {
     }
     pub fn teleport_robot(&mut self, id: Robot, pos: Point<f64>, r: Option<f64>) {
         self.teleport_entity(self.get_robot_handle(id), pos, r);
+    }
+    pub fn kick(&mut self, id: Robot, f: f32) {
+        
     }
     pub fn reset(&mut self) {
         for (_, b) in self.bodies.iter_mut() {
