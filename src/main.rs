@@ -68,11 +68,11 @@ fn main() {
 #[cfg(feature = "http_server")]
 #[tokio::main]
 async fn main() {
-    use std::{net::SocketAddr, sync::Arc};
+    use std::{collections::HashMap, net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4}, sync::Arc, time::Duration};
 
     use futures_util::{future::{select, Either}, SinkExt, StreamExt};
-    use tmq::{Context, Multipart};
-    use tokio::{join, net::TcpListener, sync::{mpsc, Mutex}};
+    use tmq::{publish::Publish, request_reply::RequestReceiver, Context, Multipart};
+    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, join, net::{TcpListener, TcpSocket}, sync::{mpsc, Mutex}, time::Instant};
     use tokio_tungstenite::tungstenite::Message;
     use tracing::{info, error};
     use crate::http::{WS_PORT, default::ClientMsg};
@@ -121,6 +121,21 @@ async fn main() {
             }
             None
         }
+        fn find_with_ip(&self, ip: &IpAddr) -> Option<&Session> {
+            for s in self.inner.iter() {
+                if &s.ws.ip() == ip {
+                    return Some(s)
+                }
+                for c in s.clients.iter() {
+                    for a in c.iter() {
+                        if &a.ip() == ip {
+                            return Some(s);
+                        }
+                    }
+                }
+            }
+            None
+        }
     }
 
     // Host the page and wasm file
@@ -132,59 +147,78 @@ async fn main() {
         inner: Vec::new(),
         available_ports: (10200..10500).collect() // Arbitrary
     }));
-    let s = sessions.clone();
-
+    
     // Redirect tcp messages to the good session
+    let ctrl = TcpListener::bind("127.0.0.1:7557").await.unwrap();
+    let state = TcpListener::bind("127.0.0.1:7558").await.unwrap();
+
+    // The socket waiting to be paired
+    let state_orphan = Arc::new(Mutex::new(None::<(u16, Publish)>));
+    // The pairs that are not yet matched with a simulation
+    let pairs: Arc<Mutex<Vec<[(SocketAddr, u16, ); 2]>>> = Arc::new(Mutex::new(Vec::new()));
+    let matching_ports = Arc::new(Mutex::new(HashMap::<SocketAddr, u16>::new()));
+    let available_ports = Arc::new(Mutex::new((10200..10500).collect::<Vec<u16>>()));
+    let ctx = Context::new();
+
+    // ctrl thread
+    let so = state_orphan.clone();
+    let p = pairs.clone();
+    let ss = sessions.clone();
     tokio::spawn(async move {
-        let (ctrl, state) = join!(
-            TcpListener::bind("127.0.0.1:7557"),
-            TcpListener::bind("127.0.0.1:7558")
-        );
-        let ctrl = ctrl.unwrap();
-        let state = state.unwrap();
+        while let Ok((mut stream, addr)) = ctrl.accept().await {
+            dbg!("ctrl", addr);
+            let port = match available_ports.lock().await.pop() {
+                Some(p) => p,
+                None => {
+                    error!("Not enough available ports");
+                    continue
+                }
+            };
+            // Redirect all incoming traffic in the port
+            tokio::spawn(async move {
+                let mut local_stream = TcpSocket::new_v4()
+                    .unwrap()
+                    .connect(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port)))
+                    .await
+                    .unwrap();
+                loop {
+                    let mut data = [0u8; 64];
+                    stream.read(&mut data).await.unwrap();
+                    local_stream.write(&data).await.unwrap();
+                }
+            });
+            // Create the zmq socket that receives controls
+            let socket = tmq::reply(&ctx).bind(&format!("tcp://*:{}", port)).unwrap();
 
-        // The socket waiting to be paired
-        let orphan = Arc::new(Mutex::new(None));
-        // The pairs that are not yet matched with a simulation
-        let pairs = Arc::new(Mutex::new(Vec::new()));
-
-        // ctrl thread
-        let o = orphan.clone();
-        let p = pairs.clone();
-        tokio::spawn(async move {
-            while let Ok((stream, addr)) = ctrl.accept().await {
-                dbg!("ctrl", addr);
-                let mut orphan = o.lock().await;
-                match orphan.take() {
-                    None => {
-                        *orphan = Some(addr);
-                    },
-                    Some(addr2) => {
-                        p.lock().await.push((addr, addr2));
-                    }
+            match so.lock().await.take() {
+                None => {
+                    let state_socket = Arc::new(Mutex::new(None::<(u16, Publish)>));
+                    // Wait for the state socket
+                    let state_s = state_socket.clone();
+                    tokio::spawn(async move {
+                        let start = Instant::now();
+                        loop {
+                            if start.elapsed() > Duration::from_millis(3000) {
+                                state_s.lock().await
+                                break
+                            }
+                            if let Some(socket) = state_orphan.lock().await.take() {
+                                *state_s.lock().await = Some(socket);
+                                break
+                            }
+                        }
+                    });
+                    // Match the socket with a session
+                    let mut session = ss.lock().await.find_with_ip()
+                    tokio::spawn(async move {
+                        
+                    })
+                },
+                Some((state_port, state_socket)) => {
+                    
                 }
             }
-        });
-
-        // state thread
-        let o = orphan;
-        let p = pairs;
-        tokio::spawn(async move {
-            while let Ok((stream, addr)) = state.accept().await {
-                dbg!("state", addr);
-                let mut orphan = o.lock().await;
-                match orphan.take() {
-                    None => {
-                        *orphan = Some(addr);
-                    },
-                    Some(addr2) => {
-                        p.lock().await.push((addr, addr2));
-                    }
-                }
-            }
-        });
-
-        s;
+        }
     });
 
     let ctx = Context::new();

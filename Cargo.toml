@@ -91,7 +91,7 @@ default_http_client = ["http_client_control", "standard_gc", "bevy_gui"]
 
 default_native = ["standard_control", "standard_gc", "bevy_gui"]
 
-default = ["default_http_client"]
+default = ["default_http_server"]
 
 [dependencies]
 rapier2d-f64 = { version = "0.19", features = ["simd-stable"] }
