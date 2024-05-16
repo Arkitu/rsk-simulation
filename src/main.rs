@@ -69,57 +69,53 @@ fn main() {
 #[tokio::main]
 async fn main() {
     use std::{collections::HashMap, net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4}, sync::Arc, time::Duration};
-
     use futures_util::{future::{select, Either}, SinkExt, StreamExt};
     use serde_json::Value;
     use tmq::{publish::Publish, request_reply::RequestReceiver, Context, Multipart};
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, join, net::{TcpListener, TcpSocket}, sync::{mpsc, Mutex}, time::Instant};
+    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, join, net::{TcpListener, TcpSocket}, sync::{mpsc, watch, Mutex}, time::Instant};
     use tokio_tungstenite::tungstenite::Message;
     use tracing::{info, error};
     use crate::http::{WS_PORT, default::ClientMsg};
+    use crate::game_state::GameState;
+
+    let DEFAULT_GAME_STATE_JSON = serde_json::to_string(&GameState::default()).unwrap();
 
     struct Session {
         id: String,
         ws: SocketAddr,
-        ctrls: Vec<SocketAddr>,
-        states: Vec<SocketAddr>,
+        // Receives game state json
+        state_rcv: watch::Receiver<String>,
         ctrl_port: u16,
-        state_port: u16
     }
 
     struct Sessions {
-        inner: Vec<Arc<Mutex<Session>>>,
+        inner: Vec<Session>,
         lobby: Session,
         available_ports: Vec<u16>
     }
     impl Sessions {
         // Return error if there are not enough ports available
-        fn insert(&mut self, id: String, ws: SocketAddr) -> Result<(u16, u16), ()> {
-            let ports = (
-                self.available_ports.pop().ok_or(())?,
-                self.available_ports.pop().ok_or(())?
-            );
-            self.inner.push(Arc::new(Mutex::new(Session {
+        fn insert(&mut self, id: String, ws: SocketAddr) -> Result<(u16, watch::Sender<String>), ()> {
+            let ctrl_port = self.available_ports.pop().ok_or(())?;
+            let (tx, state_rcv) = watch::channel(serde_json::to_string(&GameState::default()).unwrap());
+            self.inner.push(Session {
                 id,
                 ws,
-                ctrls: Vec::new(),
-                states: Vec::new(),
-                ctrl_port: ports.0,
-                state_port: ports.1
-            })));
-            Ok(ports)
+                state_rcv,
+                ctrl_port
+            });
+            Ok((ctrl_port, tx))
         }
-        fn find_with_addr(&self, addr: &SocketAddr) -> Option<&Session> {
-            self.inner.iter().find(|s| {
-                let s = s.lock().await;
-                &s.ws == addr || s.ctrls.contains(addr) || s.states.contains(addr)
-            })
-        }
-        fn find_with_ip(&self, ip: &IpAddr) -> Option<&Session> {
-            self.inner.iter().find(|s| {
-                &s.ws.ip() == ip || s.ctrls.iter().any(|a| &a.ip() == ip) || s.states.iter().any(|a| &a.ip() == ip)
-            })
-        }
+        // fn find_with_addr(&self, addr: &SocketAddr) -> Option<&Session> {
+        //     self.inner.iter().find(|s| {
+        //         &s.ws == addr || s.ctrls.contains(addr) || s.states.contains(addr)
+        //     })
+        // }
+        // fn find_with_ip(&self, ip: &IpAddr) -> Option<&Session> {
+        //     self.inner.iter().find(|s| {
+        //         &s.ws.ip() == ip || s.ctrls.iter().any(|a| &a.ip() == ip) || s.states.iter().any(|a| &a.ip() == ip)
+        //     })
+        // }
         fn find_with_id(&self, id: &str) -> Option<&Session> {
             self.inner.iter().find(|s| {
                 &s.id == id
@@ -136,15 +132,22 @@ async fn main() {
         "./target/wasm32-unknown-unknown/debug/rsk-simulation.wasm".to_string(),
     ));
 
+    let (tx, rx) = watch::channel(DEFAULT_GAME_STATE_JSON.clone());
+
+    let dgsj = DEFAULT_GAME_STATE_JSON.clone();
+    tokio::spawn(async move {
+        loop {
+            tx.send(dgsj.clone()).unwrap();
+        }
+    });
+
     let sessions: Arc<Mutex<Sessions>> = Arc::new(Mutex::new(Sessions {
         inner: Vec::new(),
         lobby: Session {
             id: "".to_string(),
             ws: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0),
-            ctrls: Vec::new(),
-            states: Vec::new(),
-            ctrl_port: 10200,
-            state_port: 10201
+            state_rcv: rx,
+            ctrl_port: 10200
         },
         available_ports: (10202..10500).collect() // Arbitrary
     }));
@@ -154,16 +157,12 @@ async fn main() {
     let state = TcpListener::bind("127.0.0.1:7558").await.unwrap();
 
     // The socket waiting to be paired
-    let state_orphan = Arc::new(Mutex::new(None::<(u16, Publish)>));
+    let state_orphan = Arc::new(Mutex::new(None::<u16>));
     // The pairs that are not yet matched with a simulation
-    let pairs: Arc<Mutex<Vec<[(SocketAddr, u16, ); 2]>>> = Arc::new(Mutex::new(Vec::new()));
-    let matching_ports = Arc::new(Mutex::new(HashMap::<SocketAddr, u16>::new()));
     let available_ports = Arc::new(Mutex::new((10200..10500).collect::<Vec<u16>>()));
     let ctx = Context::new();
 
-    // ctrl thread
-    let so = state_orphan.clone();
-    let p = pairs.clone();
+    // Thread that manages incoming ctrls sockets
     let ss = sessions.clone();
     let so = state_orphan.clone();
     tokio::spawn(async move {
@@ -191,40 +190,54 @@ async fn main() {
             });
             // Create the zmq socket that receives controls
             let socket = tmq::reply(&ctx).bind(&format!("tcp://*:{}", port)).unwrap();
-
-            match so.lock().await.take() {
-                None => {
-                    let state_socket = Arc::new(Mutex::new(None::<(u16, Publish)>));
-                    // Wait for the state socket
-                    let state_s = state_socket.clone();
-                    let so = so.clone();
-                    tokio::spawn(async move {
-                        let start = Instant::now();
-                        loop {
-                            if start.elapsed() > Duration::from_millis(3000) {
-                                // Poison state_socket to crash pair thread
-                                let _lock = state_s.lock().await;
-                                panic!("Timeout for state socket detection (this is a normal error)");
-                            }
-                            if let Some(socket) = so.lock().await.take() {
-                                *state_s.lock().await = Some(socket);
-                                break
-                            }
-                        }
-                    });
-                    // Match the socket with a session
-                    let mut session = ss.lock().await.find_with_ip(&addr.ip()).unwrap_or(ss.lock().await.lobby());
-                    let ss = ss.clone();
-                    tokio::spawn(async move {
-                        let (mut msg, sender) = socket.recv().await.unwrap();
-                        let (key, _, _, _) : (String, String, u8, Vec<Value>) = serde_json::from_slice(&msg.pop_front().unwrap()).unwrap();
-                        session = &ss.lock().await.find_with_id(&key).unwrap();
-                    });
-                },
-                Some((state_port, state_socket)) => {
-                    
+            
+            let state_socket = Arc::new(Mutex::new(None::<u16>));
+            // Wait for the state socket
+            let state_s = state_socket.clone();
+            let so = so.clone();
+            tokio::spawn(async move {
+                let start = Instant::now();
+                loop {
+                    if start.elapsed() > Duration::from_millis(3000) {
+                        // Poison state_socket to crash pair thread
+                        let _lock = state_s.lock().await;
+                        panic!("Timeout for state socket detection (this is a normal error)");
+                    }
+                    if let Some(socket) = so.lock().await.take() {
+                        *state_s.lock().await = Some(socket);
+                        break
+                    }
                 }
-            }
+            });
+            
+            let ss = ss.clone();
+            let session_socket = tmq::request(&ctx);
+            tokio::spawn(async move {
+                // Wait for the first message to match the socket with the session which's id correspond to the key of the message
+                let (msg, sender) = socket.recv().await.unwrap();
+                let (key, _, _, _) : (String, String, u8, Vec<Value>) = serde_json::from_slice(msg.iter().last().unwrap()).unwrap();
+                let session_socket = session_socket.connect(&format!("tcp://127.0.0.1:{}", ss.lock().await.find_with_id(&key).unwrap().ctrl_port)).unwrap();
+                
+                // Forward all ctrls to session's ctrl socket
+                let mut msg = Some(msg);
+                let mut session_sender = Some(session_socket);
+                let mut client_sender = Some(sender);
+                loop {
+                    let session_receiver = session_sender.take().unwrap().send(msg.take().unwrap()).await.unwrap();
+                    let (res, s_sender) = session_receiver.recv().await.unwrap();
+                    session_sender = Some(s_sender);
+                    let client_receiver = client_sender.take().unwrap().send(res).await.unwrap();
+                    let (req, c_sender) = client_receiver.recv().await.unwrap();
+                    msg = Some(req);
+                    client_sender = Some(c_sender);
+                }
+            });
+        }
+    });
+
+    tokio::spawn(async move {
+        while let Ok((mut stream, addr)) = state.accept().await {
+
         }
     });
 
@@ -233,15 +246,14 @@ async fn main() {
     while let Ok((stream, addr)) = ws.accept().await {
         let sessions: Arc<Mutex<Sessions>> = sessions.clone();
         let ctrl_socket = tmq::reply(&ctx);
-        let state_socket = tmq::publish(&ctx);
         tokio::spawn(async move {
             info!(target:"ws", "New incoming connection : {}", addr);
             let stream = tokio_tungstenite::accept_async(stream).await.unwrap();
             let (mut ws_write, mut ws_read) = stream.split();
             
-            let (ctrl_socket, mut state_socket) = if let Message::Binary(bits) = ws_read.next().await.unwrap().unwrap() {
+            let (ctrl_socket, state_sender) = if let Message::Binary(bits) = ws_read.next().await.unwrap().unwrap() {
                 if let ClientMsg::InitialMsg(id) = bitcode::deserialize(&bits).unwrap() {
-                    let ports = match sessions.lock().await.insert(id, addr) {
+                    let (ctrl_port, state_sender) = match sessions.lock().await.insert(id, addr) {
                         Ok(p) => p,
                         Err(_) => {
                             error!("Not enough available ports");
@@ -249,8 +261,8 @@ async fn main() {
                         }
                     };
                     (
-                        ctrl_socket.bind(&format!("tcp://*:{}", ports.0)).unwrap(),
-                        state_socket.bind(&format!("tcp://*:{}", ports.1)).unwrap()
+                        ctrl_socket.bind(&format!("tcp://*:{}", ctrl_port)).unwrap(),
+                        state_sender
                     )
                 } else {
                     error!(target: "ws", "First message is not InitialMsg");
@@ -274,11 +286,7 @@ async fn main() {
                                 }
                                 ClientMsg::GameState(gs) => {
                                     let json = serde_json::to_string(&gs).unwrap();
-                                    if let Err(e) = state_socket.send(vec![&json]).await {
-                                        error!(target: "zmq", "Error when sending msg : {}", e);
-                                        return
-                                        // return Err(TError::ConnectionClosed)
-                                    }
+                                    state_sender.send(json).unwrap()
                                 },
                                 ClientMsg::CtrlRes(res) => {
                                     res_sender.send(res).unwrap();
