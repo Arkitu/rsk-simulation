@@ -72,7 +72,7 @@ async fn main() {
     use futures_util::{future::{select, Either}, SinkExt, StreamExt};
     use serde_json::Value;
     use tmq::{publish::Publish, request_reply::RequestReceiver, Context, Multipart};
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, join, net::{TcpListener, TcpSocket}, sync::{mpsc, watch, Mutex}, time::Instant};
+    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, join, net::{TcpListener, TcpSocket}, sync::{mpsc, oneshot, watch, Mutex}, time::Instant};
     use tokio_tungstenite::tungstenite::Message;
     use tracing::{info, error};
     use crate::http::{WS_PORT, default::ClientMsg};
@@ -80,6 +80,7 @@ async fn main() {
 
     let DEFAULT_GAME_STATE_JSON = serde_json::to_string(&GameState::default()).unwrap();
 
+    #[derive(Clone)]
     struct Session {
         id: String,
         ws: SocketAddr,
@@ -160,11 +161,12 @@ async fn main() {
     let state_orphan = Arc::new(Mutex::new(None::<u16>));
     // The pairs that are not yet matched with a simulation
     let available_ports = Arc::new(Mutex::new((10200..10500).collect::<Vec<u16>>()));
-    let ctx = Context::new();
+    let context = Context::new();
 
     // Thread that manages incoming ctrls sockets
     let ss = sessions.clone();
     let so = state_orphan.clone();
+    let ctx = context.clone();
     tokio::spawn(async move {
         while let Ok((mut stream, addr)) = ctrl.accept().await {
             dbg!("ctrl", addr);
@@ -210,13 +212,33 @@ async fn main() {
                 }
             });
             
-            let ss = ss.clone();
+            let (state_rcv_tx, state_rcv_rx) = oneshot::channel::<watch::Receiver<String>>();
+            let mut rcv = ss.lock().await.lobby().state_rcv.clone();
+            let state_socket = tmq::publish(&ctx);
+            // State socket
+            tokio::spawn(async move {
+                
+                loop {
+                    match state_rcv_rx.try_recv() {
+                        Ok(r) => {
+                            rcv = r;
+                            break
+                        },
+                        Err(oneshot::error::TryRecvError::Empty) => {
+
+                        }
+                    }
+                }
+            });
+
+            let sessions = ss.clone();
             let session_socket = tmq::request(&ctx);
             tokio::spawn(async move {
                 // Wait for the first message to match the socket with the session which's id correspond to the key of the message
                 let (msg, sender) = socket.recv().await.unwrap();
                 let (key, _, _, _) : (String, String, u8, Vec<Value>) = serde_json::from_slice(msg.iter().last().unwrap()).unwrap();
-                let session_socket = session_socket.connect(&format!("tcp://127.0.0.1:{}", ss.lock().await.find_with_id(&key).unwrap().ctrl_port)).unwrap();
+                let session = sessions.lock().await.find_with_id(&key).unwrap().clone();
+                let session_socket = session_socket.connect(&format!("tcp://127.0.0.1:{}", session.ctrl_port)).unwrap();
                 
                 // Forward all ctrls to session's ctrl socket
                 let mut msg = Some(msg);
@@ -241,11 +263,10 @@ async fn main() {
         }
     });
 
-    let ctx = Context::new();
     let ws = TcpListener::bind(format!("127.0.0.1:{}", WS_PORT)).await.expect("Can't create TcpListener");
     while let Ok((stream, addr)) = ws.accept().await {
         let sessions: Arc<Mutex<Sessions>> = sessions.clone();
-        let ctrl_socket = tmq::reply(&ctx);
+        let ctrl_socket = tmq::reply(&context);
         tokio::spawn(async move {
             info!(target:"ws", "New incoming connection : {}", addr);
             let stream = tokio_tungstenite::accept_async(stream).await.unwrap();
