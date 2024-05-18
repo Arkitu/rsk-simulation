@@ -72,9 +72,9 @@ async fn main() {
     use futures_util::{future::{select, Either}, SinkExt, StreamExt};
     use serde_json::Value;
     use tmq::{publish::Publish, request_reply::RequestReceiver, Context, Multipart};
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, join, net::{TcpListener, TcpSocket}, sync::{mpsc, oneshot, watch, Mutex}, time::Instant};
+    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, join, net::{TcpListener, TcpSocket, TcpStream}, sync::{mpsc, oneshot, watch, Mutex}, time::Instant};
     use tokio_tungstenite::tungstenite::Message;
-    use tracing::{info, error};
+    use tracing::{error, info, warn};
     use crate::http::{WS_PORT, default::ClientMsg};
     use crate::game_state::GameState;
 
@@ -158,7 +158,7 @@ async fn main() {
     let state = TcpListener::bind("127.0.0.1:7558").await.unwrap();
 
     // The socket waiting to be paired
-    let state_orphan = Arc::new(Mutex::new(None::<u16>));
+    let state_orphan = Arc::new(Mutex::new(None::<(TcpStream, SocketAddr)>));
     // The pairs that are not yet matched with a simulation
     let available_ports = Arc::new(Mutex::new((10200..10500).collect::<Vec<u16>>()));
     let context = Context::new();
@@ -257,16 +257,24 @@ async fn main() {
         }
     });
 
+    let ss = sessions.clone();
+    let ctx = context.clone();
     tokio::spawn(async move {
         while let Ok((mut stream, addr)) = state.accept().await {
-
+            let port = match ss.lock().await.available_ports.pop() {
+                Some(p) => p,
+                None => {
+                    error!("Not enough available ports");
+                    continue;
+                }
+            };
         }
     });
 
     let ws = TcpListener::bind(format!("127.0.0.1:{}", WS_PORT)).await.expect("Can't create TcpListener");
     while let Ok((stream, addr)) = ws.accept().await {
-        let sessions: Arc<Mutex<Sessions>> = sessions.clone();
         let ctrl_socket = tmq::reply(&context);
+        let sessions = sessions.clone();
         tokio::spawn(async move {
             info!(target:"ws", "New incoming connection : {}", addr);
             let stream = tokio_tungstenite::accept_async(stream).await.unwrap();
