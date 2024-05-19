@@ -212,24 +212,8 @@ async fn main() {
                 }
             });
             
-            let (state_rcv_tx, state_rcv_rx) = oneshot::channel::<watch::Receiver<String>>();
             let mut rcv = ss.lock().await.lobby().state_rcv.clone();
-            let state_socket = tmq::publish(&ctx);
-            // State socket
-            tokio::spawn(async move {
-                
-                loop {
-                    match state_rcv_rx.try_recv() {
-                        Ok(r) => {
-                            rcv = r;
-                            break
-                        },
-                        Err(oneshot::error::TryRecvError::Empty) => {
-
-                        }
-                    }
-                }
-            });
+            
 
             let sessions = ss.clone();
             let session_socket = tmq::request(&ctx);
@@ -268,6 +252,45 @@ async fn main() {
                     continue;
                 }
             };
+
+            let mut rcv = ss.lock().await.lobby().state_rcv.clone();
+            let (state_rcv_tx, state_rcv_rx) = oneshot::channel::<watch::Receiver<String>>();
+            let ctx = ctx.clone();
+            tokio::spawn(async move {
+                let mut state_socket = tmq::publish(&ctx).bind(&format!("tcp://*:{}", port)).unwrap();
+                loop {
+                    match state_rcv_rx.try_recv() {
+                        Ok(r) => {
+                            rcv = r;
+                            break
+                        },
+                        Err(oneshot::error::TryRecvError::Empty) => {
+
+                        },
+                        Err(e) => Err(e).unwrap()
+                    }
+                    state_socket.send(rcv);
+                }
+                loop {
+
+                }
+            });
+
+            // Redirect all incoming traffic in the port
+            tokio::spawn(async move {
+                let mut local_stream = TcpSocket::new_v4()
+                    .unwrap()
+                    .connect(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port)))
+                    .await
+                    .unwrap();
+                loop {
+                    let mut data = [0u8; 64];
+                    stream.read(&mut data).await.unwrap();
+                    local_stream.write(&data).await.unwrap();
+                }
+            });
+
+            
         }
     });
 
