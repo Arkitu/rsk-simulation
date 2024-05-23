@@ -1,5 +1,5 @@
 use super::EndpointError;
-use crate::ZmqError;
+use super::super::ZmqError;
 
 use std::convert::TryFrom;
 use std::fmt;

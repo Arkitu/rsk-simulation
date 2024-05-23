@@ -1,13 +1,13 @@
-use crate::backend::GenericSocketBackend;
-use crate::codec::*;
-use crate::endpoint::Endpoint;
-use crate::error::{ZmqError, ZmqResult};
-use crate::fair_queue::FairQueue;
-use crate::message::*;
-use crate::transport::AcceptStopHandle;
-use crate::util::PeerIdentity;
-use crate::{MultiPeerBackend, SocketEvent, SocketOptions, SocketRecv, SocketSend, SocketType};
-use crate::{Socket, SocketBackend};
+use super::backend::GenericSocketBackend;
+use super::codec::*;
+use super::endpoint::Endpoint;
+use super::error::{ZmqError, ZmqResult};
+use super::fair_queue::FairQueue;
+use super::message::*;
+use super::transport::AcceptStopHandle;
+use super::util::PeerIdentity;
+use super::{MultiPeerBackend, SocketEvent, SocketOptions, SocketRecv, SocketSend, SocketType};
+use super::{Socket, SocketBackend};
 
 use async_trait::async_trait;
 use futures_channel::mpsc;

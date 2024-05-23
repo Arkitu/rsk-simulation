@@ -72,13 +72,14 @@ fn main() {
 #[tokio::main]
 async fn main() {
     use std::{collections::HashMap, net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4}, sync::Arc, time::Duration};
+    use dashmap::DashMap;
     use futures_util::{future::{select, Either}, SinkExt, StreamExt};
     use serde_json::Value;
-    use tmq::{publish::Publish, request_reply::RequestReceiver, Context, Multipart};
     use tokio::{io::{AsyncReadExt, AsyncWriteExt}, join, net::{TcpListener, TcpSocket, TcpStream}, sync::{mpsc, oneshot, watch, Mutex}, time::{sleep, Instant}};
     use tokio_tungstenite::tungstenite::Message;
     use tracing::{error, info, warn};
-    use crate::http::{WS_PORT, default::ClientMsg};
+    use crate::zeromq::prelude::*;
+    use crate::{http::{default::ClientMsg, WS_PORT}};
     use crate::game_state::GameState;
 
     let DEFAULT_GAME_STATE_JSON = serde_json::to_string(&GameState::default()).unwrap();
@@ -155,19 +156,55 @@ async fn main() {
         },
         available_ports: (10202..10500).collect() // Arbitrary
     }));
-    
+
+    //
+    let ctrl_sessions = Arc::new(DashMap::<
+            String, // session's id
+            (
+                mpsc::Sender<(String, u8, Vec<Value>)>, // (team, number, command)
+                mpsc::Receiver<Vec<u8>> // response in bytes
+            )
+        >::new());
+
+    // ctrl socket
+    let ctrls = ctrl_sessions.clone();
+    tokio::spawn(async move {
+        let socket = zeromq::RepSocket::new();
+        socket.bind("tcp://*:7557").await.unwrap();
+
+        loop {
+            let req = match socket.recv().await.unwrap().get(0) {
+                Some(req) => req,
+                None => {
+                    warn!("Received empty message");
+                    continue
+                }
+            };
+            let (key, team, number, cmd) : (String, String, u8, Vec<Value>) = match serde_json::from_slice(req) {
+                Ok(t) => t,
+                Err(e) => {
+                    warn!("Error when deserializing req : {}", e);
+                    continue
+                }
+            };
+            match ctrls.get(&key) {
+                Some(ctrl) => {
+                    let (sender, receiver) = ctrl.pair();
+                }
+            }
+        }
+    });
+
     // Redirect tcp messages to the good session
     let ctrl = TcpListener::bind("127.0.0.1:7557").await.unwrap();
     let state = TcpListener::bind("127.0.0.1:7558").await.unwrap();
 
     // The socket waiting to be paired
     let state_orphan = Arc::new(Mutex::new(None::<oneshot::Sender<watch::Receiver<String>>>));
-    let context = Context::new();
 
     // Thread that manages incoming ctrls sockets
     let ss = sessions.clone();
     let so = state_orphan.clone();
-    let ctx = context.clone();
     tokio::spawn(async move {
         while let Ok((mut stream, addr)) = ctrl.accept().await {
             dbg!("ctrl", addr);

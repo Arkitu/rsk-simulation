@@ -1,5 +1,5 @@
-use crate::codec::{CodecResult, FramedIo};
-use crate::*;
+use super::codec::{CodecResult, FramedIo};
+use super::*;
 
 use asynchronous_codec::FramedRead;
 use bytes::Bytes;
@@ -225,7 +225,7 @@ pub(crate) async fn connect_forever(endpoint: Endpoint) -> ZmqResult<(FramedIo, 
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::codec::mechanism::ZmqMechanism;
+    use super::super::codec::mechanism::ZmqMechanism;
 
     pub async fn test_bind_to_unspecified_interface_helper(
         any: std::net::IpAddr,

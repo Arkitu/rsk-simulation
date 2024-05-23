@@ -162,8 +162,8 @@ impl<S, K: Clone> FairQueue<S, K> {
 
 #[cfg(test)]
 mod test {
-    use crate::async_rt;
-    use crate::fair_queue::FairQueue;
+    use super::super::async_rt;
+    use super::FairQueue;
     use futures_util::{stream, StreamExt};
 
     #[async_rt::test]

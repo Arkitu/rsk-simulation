@@ -41,6 +41,7 @@ http_server = [
     "json",
     "bitcode",
     "dep:tmq",
+    "zeromq",
     "dep:tokio-tungstenite",
     "wasm_server_runner",
     "default_http",

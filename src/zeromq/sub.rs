@@ -1,13 +1,13 @@
-use crate::backend::Peer;
-use crate::codec::{FramedIo, Message, ZmqFramedRead};
-use crate::endpoint::Endpoint;
-use crate::error::ZmqResult;
-use crate::fair_queue::FairQueue;
-use crate::fair_queue::QueueInner;
-use crate::message::ZmqMessage;
-use crate::transport::AcceptStopHandle;
-use crate::util::PeerIdentity;
-use crate::{
+use super::backend::Peer;
+use super::codec::{FramedIo, Message, ZmqFramedRead};
+use super::endpoint::Endpoint;
+use super::error::ZmqResult;
+use super::fair_queue::FairQueue;
+use super::fair_queue::QueueInner;
+use super::message::ZmqMessage;
+use super::transport::AcceptStopHandle;
+use super::util::PeerIdentity;
+use super::{
     MultiPeerBackend, Socket, SocketBackend, SocketEvent, SocketOptions, SocketRecv, SocketType,
 };
 

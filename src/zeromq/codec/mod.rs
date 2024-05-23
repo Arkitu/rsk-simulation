@@ -14,8 +14,8 @@ pub(crate) use framed::{FrameableRead, FrameableWrite, FramedIo, ZmqFramedRead, 
 pub(crate) use greeting::{ZmqGreeting, ZmtpVersion};
 pub(crate) use zmq_codec::ZmqCodec;
 
-use crate::message::ZmqMessage;
-use crate::{ZmqError, ZmqResult};
+use super::message::ZmqMessage;
+use super::{ZmqError, ZmqResult};
 
 use futures_task::noop_waker;
 use futures_util::Sink;

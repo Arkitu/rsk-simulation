@@ -1,5 +1,5 @@
 use super::error::CodecError;
-use crate::SocketType;
+use super::super::SocketType;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 

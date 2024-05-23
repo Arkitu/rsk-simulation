@@ -11,10 +11,7 @@ where
     T: Future + Send + 'static,
     T::Output: Send + 'static,
 {
-    #[cfg(feature = "tokio-runtime")]
     let result = tokio::task::spawn(task).into();
-    #[cfg(feature = "async-std-runtime")]
-    let result = async_std::task::spawn(task).into();
 
     result
 }
@@ -39,7 +36,6 @@ impl JoinError {
     }
 }
 
-#[cfg(feature = "tokio-runtime")]
 impl From<tokio::task::JoinError> for JoinError {
     fn from(err: tokio::task::JoinError) -> Self {
         if err.is_cancelled() {
@@ -51,10 +47,7 @@ impl From<tokio::task::JoinError> for JoinError {
 }
 
 pub async fn sleep(duration: std::time::Duration) {
-    #[cfg(feature = "tokio-runtime")]
     ::tokio::time::sleep(duration).await;
-    #[cfg(feature = "async-std-runtime")]
-    ::async_std::task::sleep(duration).await
 }
 
 pub async fn timeout<F, T>(
@@ -64,10 +57,7 @@ pub async fn timeout<F, T>(
 where
     F: Future<Output = T>,
 {
-    #[cfg(feature = "tokio-runtime")]
     let result = ::tokio::time::timeout(duration, f).await?;
-    #[cfg(feature = "async-std-runtime")]
-    let result = ::async_std::future::timeout(duration, f).await?;
 
     Ok(result)
 }

@@ -1,8 +1,8 @@
-use crate::codec::{CodecError, Message, ZmtpVersion};
-use crate::endpoint::Endpoint;
-use crate::endpoint::EndpointError;
-use crate::task_handle::TaskError;
-use crate::ZmqMessage;
+use super::codec::{CodecError, Message, ZmtpVersion};
+use super::endpoint::Endpoint;
+use super::endpoint::EndpointError;
+use super::task_handle::TaskError;
+use super::ZmqMessage;
 
 use futures_channel::mpsc;
 use thiserror::Error;

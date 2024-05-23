@@ -1,5 +1,5 @@
-use crate::async_rt;
-use crate::error::{ZmqError, ZmqResult};
+use super::async_rt;
+use super::error::{ZmqError, ZmqResult};
 
 use futures_channel::oneshot;
 use thiserror::Error;

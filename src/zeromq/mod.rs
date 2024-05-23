@@ -25,20 +25,20 @@ pub mod __async_rt {
     pub use super::async_rt::*;
 }
 
-pub use crate::dealer::*;
-pub use crate::endpoint::{Endpoint, Host, Transport, TryIntoEndpoint};
-pub use crate::error::{ZmqError, ZmqResult};
-pub use crate::message::*;
-pub use crate::pull::*;
-pub use crate::push::*;
-pub use crate::r#pub::*;
-pub use crate::rep::*;
-pub use crate::req::*;
-pub use crate::router::*;
-pub use crate::sub::*;
+pub use dealer::*;
+pub use endpoint::{Endpoint, Host, Transport, TryIntoEndpoint};
+pub use error::{ZmqError, ZmqResult};
+pub use message::*;
+pub use pull::*;
+pub use push::*;
+pub use r#pub::*;
+pub use rep::*;
+pub use req::*;
+pub use router::*;
+pub use sub::*;
 
-use crate::codec::*;
-use crate::transport::AcceptStopHandle;
+use codec::*;
+use transport::AcceptStopHandle;
 use util::PeerIdentity;
 
 use async_trait::async_trait;
@@ -392,5 +392,5 @@ pub async fn proxy<Frontend: SocketSend + SocketRecv, Backend: SocketSend + Sock
 pub mod prelude {
     //! Re-exports important traits. Consider glob-importing.
 
-    pub use crate::{Socket, SocketRecv, SocketSend, TryIntoEndpoint};
+    pub use super::{Socket, SocketRecv, SocketSend, TryIntoEndpoint};
 }

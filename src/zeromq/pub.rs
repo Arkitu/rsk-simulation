@@ -1,11 +1,11 @@
-use crate::codec::*;
-use crate::endpoint::Endpoint;
-use crate::error::ZmqResult;
-use crate::message::*;
-use crate::transport::AcceptStopHandle;
-use crate::util::PeerIdentity;
-use crate::{async_rt, CaptureSocket, SocketOptions};
-use crate::{
+use super::codec::*;
+use super::endpoint::Endpoint;
+use super::error::ZmqResult;
+use super::message::*;
+use super::transport::AcceptStopHandle;
+use super::util::PeerIdentity;
+use super::{async_rt, CaptureSocket, SocketOptions};
+use super::{
     MultiPeerBackend, Socket, SocketBackend, SocketEvent, SocketSend, SocketType, ZmqError,
 };
 
@@ -236,10 +236,10 @@ impl Socket for PubSocket {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::util::tests::{
+    use super::super::util::tests::{
         test_bind_to_any_port_helper, test_bind_to_unspecified_interface_helper,
     };
-    use crate::ZmqResult;
+    use super::super::ZmqResult;
     use std::net::IpAddr;
 
     #[async_rt::test]

@@ -1,9 +1,9 @@
-use crate::backend::GenericSocketBackend;
-use crate::codec::{Message, ZmqFramedRead};
-use crate::fair_queue::FairQueue;
-use crate::transport::AcceptStopHandle;
-use crate::util::PeerIdentity;
-use crate::{
+use super::backend::GenericSocketBackend;
+use super::codec::{Message, ZmqFramedRead};
+use super::fair_queue::FairQueue;
+use super::transport::AcceptStopHandle;
+use super::util::PeerIdentity;
+use super::{
     CaptureSocket, Endpoint, MultiPeerBackend, Socket, SocketBackend, SocketEvent, SocketOptions,
     SocketRecv, SocketSend, SocketType, ZmqMessage, ZmqResult,
 };

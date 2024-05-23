@@ -1,4 +1,4 @@
-use crate::codec::ZmqCodec;
+use super::super::codec::ZmqCodec;
 
 use asynchronous_codec::{FramedRead, FramedWrite};
 use futures_io::{AsyncRead, AsyncWrite};

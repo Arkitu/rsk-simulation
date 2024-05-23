@@ -1,7 +1,7 @@
-use crate::codec::{FramedIo, Message, ZmqFramedRead, ZmqFramedWrite};
-use crate::fair_queue::QueueInner;
-use crate::util::PeerIdentity;
-use crate::{
+use super::codec::{FramedIo, Message, ZmqFramedRead, ZmqFramedWrite};
+use super::fair_queue::QueueInner;
+use super::util::PeerIdentity;
+use super::{
     MultiPeerBackend, SocketBackend, SocketEvent, SocketOptions, SocketType, ZmqError, ZmqResult,
 };
 
