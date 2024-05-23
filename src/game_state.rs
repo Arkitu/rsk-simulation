@@ -234,39 +234,22 @@ impl Robot {
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum RobotTask {
-    Penalty {
-        reason: &'static str,
-        // Frame number when the penalty started
-        start: usize
-    },
-    Control {
-        x: f32,
-        y: f32,
-        r: f32
-    },
-    Kick {
-        /// Strength of the kick between 0. and 1.
-        f: f32
-    }
-    // TODO
-}
-impl RobotTask {
-    pub fn preemption_reason(&self, robot: Robot) -> Option<String> {
-        match self {
-            &RobotTask::Penalty { .. } => match robot {
-                Robot::Blue1 => Some("penalty-blue1".to_string()),
-                Robot::Blue2 => Some("penalty-blue2".to_string()),
-                Robot::Green1 => Some("penalty-green1".to_string()),
-                Robot::Green2 => Some("penalty-green2".to_string()),
-            },
-            &RobotTask::Control { .. } => None,
-            &RobotTask::Kick { .. } => None
-        }
-    }
-}
-
+#[derive(Default)]
 pub struct RobotTasks {
-    penalty: Option<>
+    /// (reason, start)
+    pub penalty: Option<(&'static str, usize)>,
+    /// (x, y, rotation)
+    pub control: Option<(f32, f32, f32)>,
+    /// strength
+    pub kick: Option<f32>
+}
+impl RobotTasks {
+    pub fn preemption_reason(&self, robot: Robot) -> Option<&'static str> {
+        self.penalty.map(|(_, _)| match robot {
+            Robot::Blue1 => "penalty-blue1",
+            Robot::Blue2 => "penalty-blue2",
+            Robot::Green1 => "penalty-green1",
+            Robot::Green2 => "penalty-green2"
+        })
+    }
 }
