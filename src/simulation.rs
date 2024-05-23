@@ -9,6 +9,7 @@ pub struct Simulation {
     pub ball: RigidBodyHandle,
     pub robots: [RigidBodyHandle; 4],
     pub kickers: [RigidBodyHandle; 4],
+    pub kicker_joints: [ImpulseJointHandle; 4],
     gravity: Vector<f64>,
     integration_parameters: IntegrationParameters,
     physics_pipeline: PhysicsPipeline,
@@ -28,6 +29,7 @@ impl Simulation {
     pub fn new() -> Self {
         let mut bodies = RigidBodySet::new();
         let mut colliders = ColliderSet::new();
+        let mut impulse_joints = ImpulseJointSet::new();
 
         // Create the goals
         let goals = [
@@ -82,18 +84,31 @@ impl Simulation {
         // Create kickers
         let kickers = std::array::from_fn(|i| bodies.insert(
             RigidBodyBuilder::dynamic()
-                .position(DEFAULT_ROBOTS_POS[i].into())
-                .rotation(DEFAULT_ROBOTS_ANGLE[i])
+                .position(Isometry::new(Vector::new(DEFAULT_ROBOTS_POS[i].x + (if i < 2 {1.} else {-1.} * ((ROBOT_RADIUS*0.866) + (KICKER_THICKNESS/2.))), DEFAULT_ROBOTS_POS[i].y), DEFAULT_ROBOTS_ANGLE[i]))
                 .can_sleep(false)
         ));
-        for kicker in kickers.iter() {
+        let mut kicker_joints = kickers.iter().zip(robots.iter()).map(|(kicker, robot)| {
             colliders.insert_with_parent(
-                ColliderBuilder::cuboid(KICKER_THICKNESS, ROBOT_RADIUS)
-                    .position(Point::new(ROBOT_RADIUS + (KICKER_THICKNESS/2.), 0.).into()),
+                ColliderBuilder::cuboid(KICKER_THICKNESS, ROBOT_RADIUS),
                 *kicker,
                 &mut bodies
             );
-        }
+            impulse_joints.insert(
+                *robot,
+                *kicker,
+                PrismaticJointBuilder::new(UnitVector::new_normalize(Vector::x()))
+                    .local_anchor1(Point::new(ROBOT_RADIUS*0.866, 0.))
+                    .local_anchor2(Point::new(0., 0.))
+                    .motor_position(0., 1000., 0.),
+                true
+            )
+        });
+        let kicker_joints = [
+            kicker_joints.next().unwrap(),
+            kicker_joints.next().unwrap(),
+            kicker_joints.next().unwrap(),
+            kicker_joints.next().unwrap()
+        ];
 
         Self {
             bodies,
@@ -102,6 +117,7 @@ impl Simulation {
             ball,
             robots,
             kickers,
+            kicker_joints,
             gravity: vector![0.0, 0.0],
             integration_parameters: IntegrationParameters {
                 dt: DT,
@@ -111,7 +127,7 @@ impl Simulation {
             islands: IslandManager::new(),
             broad_phase: DefaultBroadPhase::new(),
             narrow_phase: NarrowPhase::new(),
-            impulse_joints: ImpulseJointSet::new(),
+            impulse_joints,
             multibody_joints: MultibodyJointSet::new(),
             ccd_solver: CCDSolver::new(),
             query_pipeline: QueryPipeline::new(),
@@ -137,6 +153,14 @@ impl Simulation {
             &self.events,
         );
         self.t += 1;
+        for kj in self.kicker_joints {
+            self.impulse_joints.get_mut(kj)
+                .unwrap()
+                .data
+                .as_prismatic_mut()
+                .unwrap()
+                .set_motor_position(0., 1000., 0.);
+        }
     }
     pub fn find_entity_at(&self, pos: Point<f64>) -> Option<RigidBodyHandle> {
         let filter = QueryFilter::default();
@@ -169,8 +193,14 @@ impl Simulation {
     pub fn teleport_robot(&mut self, id: Robot, pos: Point<f64>, r: Option<f64>) {
         self.teleport_entity(self.get_robot_handle(id), pos, r);
     }
-    pub fn kick(&mut self, id: Robot, f: f32) {
-        
+    /// f between 0. and 1.
+    pub fn kick(&mut self, id: Robot, f: f64) {
+        self.impulse_joints.get_mut(self.kicker_joints[id as usize])
+            .unwrap()
+            .data
+            .as_prismatic_mut()
+            .unwrap()
+            .set_motor_position(f*10., 1000., 0.); // TODO: Adjust f*10. with constants
     }
     pub fn reset(&mut self) {
         for (_, b) in self.bodies.iter_mut() {
@@ -182,6 +212,9 @@ impl Simulation {
         self.teleport_ball(DEFAULT_BALL_POS);
         for r in Robot::all() {
             self.teleport_robot(r, DEFAULT_ROBOTS_POS[r as usize], Some(DEFAULT_ROBOTS_ANGLE[r as usize]));
+        }
+        for i in 0..4 {
+            self.bodies[self.kickers[i]].set_position(Isometry::new(Vector::new(DEFAULT_ROBOTS_POS[i].x + (if i < 2 {1.} else {-1.} * ((ROBOT_RADIUS*0.866) + (KICKER_THICKNESS/2.))), DEFAULT_ROBOTS_POS[i].y), DEFAULT_ROBOTS_ANGLE[i]), true);
         }
     }
 }

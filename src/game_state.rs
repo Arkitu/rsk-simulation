@@ -1,4 +1,4 @@
-use std::f64::consts::PI;
+use std::{f64::consts::PI, ops::{Add, Sub}};
 
 // TODO remove that later
 use rapier2d_f64::prelude::*;
@@ -83,6 +83,24 @@ use crate::constants::real::*;
 pub struct Pose {
     pub position: Point<f64>,
     pub orientation: f64,
+}
+impl Add for &Pose {
+    type Output = Pose;
+    fn add(self, rhs: Self) -> Self::Output {
+        Pose {
+            position: Point::<f64>::new(self.position.x + rhs.position.x, self.position.y + rhs.position.y) ,
+            orientation: self.orientation + rhs.orientation
+        }
+    }
+}
+impl Sub for &Pose {
+    type Output = Pose;
+    fn sub(self, rhs: Self) -> Self::Output {
+        Pose {
+            position: Point::<f64>::new(self.position.x - rhs.position.x, self.position.y - rhs.position.y) ,
+            orientation: self.orientation - rhs.orientation
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -227,6 +245,10 @@ pub enum RobotTask {
         x: f32,
         y: f32,
         r: f32
+    },
+    Kick {
+        /// Strength of the kick between 0. and 1.
+        f: f32
     }
     // TODO
 }
@@ -239,7 +261,12 @@ impl RobotTask {
                 Robot::Green1 => Some("penalty-green1".to_string()),
                 Robot::Green2 => Some("penalty-green2".to_string()),
             },
-            &RobotTask::Control { .. } => None
+            &RobotTask::Control { .. } => None,
+            &RobotTask::Kick { .. } => None
         }
     }
+}
+
+pub struct RobotTasks {
+    penalty: Option<>
 }

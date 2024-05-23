@@ -283,4 +283,14 @@ impl GC {
     pub fn reset(&mut self) {
         self.simu.reset()
     }
+    pub fn kick(&mut self, id: Robot, f: f64) {
+        self.simu.kick(id, f)
+    }
+    pub fn get_kicker_pose(&self, id: Robot) -> Pose {
+        let pos = self.simu.bodies[self.simu.kickers[id as usize]].position();
+        Pose {
+            position: Point::new(pos.translation.x/MULTIPLIER, pos.translation.y/MULTIPLIER),
+            orientation: pos.rotation.angle()
+        }
+    }
 }

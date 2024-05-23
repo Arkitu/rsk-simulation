@@ -15,7 +15,7 @@ pub struct Control {
     socket: EventClient
 }
 impl Control {
-    pub fn new(keys: [String; 2], tasks: Rc<RefCell<[Option<RobotTask>; 4]>>) -> Self {
+    pub fn new(keys: [String; 2], tasks: Rc<RefCell<[Vec<RobotTask>; 4]>>) -> Self {
         let mut socket = EventClient::new(&format!("ws://{}", HOST)).unwrap();
 
         socket.set_on_connection(Some(Box::new(|socket| {
@@ -45,7 +45,7 @@ impl Control {
                             } {
                                 let mut tasks = tasks.borrow_mut();
                                 let mut preempted = false;
-                                if let Some(ref t) = tasks[r as usize] {
+                                for t in tasks[r as usize] {
                                     if let Some(r) = t.preemption_reason(r) {
                                         preempted = true;
                                         res = CtrlRes::Preempted(team, number, r);
@@ -56,13 +56,31 @@ impl Control {
                                         4 => match &cmd[0] {
                                             Value::String(c) => match c.as_str() {
                                                 "control" => {
-                                                    tasks[r as usize] = Some(RobotTask::Control {
-                                                        x: cmd[1].as_f64().unwrap_or(0.) as f32,
-                                                        y: cmd[2].as_f64().unwrap_or(0.) as f32,
-                                                        r: cmd[3].as_f64().unwrap_or(0.) as f32
-                                                    });
+                                                    let mut modified = false;
+                                                    for t in tasks[r as usize].iter_mut() {
+                                                        if let RobotTask::Control { x, y, r } = t {
+                                                            *x = cmd[1].as_f64().unwrap_or(0.) as f32;
+                                                            *y = cmd[2].as_f64().unwrap_or(0.) as f32;
+                                                            *r = cmd[3].as_f64().unwrap_or(0.) as f32;
+                                                            modified = true;
+                                                            break
+                                                        }
+                                                    }
+                                                    if !modified {
+                                                        tasks[r as usize].push(RobotTask::Control {
+                                                            x: cmd[1].as_f64().unwrap_or(0.) as f32,
+                                                            y: cmd[2].as_f64().unwrap_or(0.) as f32,
+                                                            r: cmd[3].as_f64().unwrap_or(0.) as f32
+                                                        });
+                                                    }
                                                     res = CtrlRes::Ok;
                                                 },
+                                                "kick" => {
+                                                    
+                                                    tasks[r as usize] = Some(RobotTask::Kick { 
+                                                        f: cmd[1].as_f64().unwrap_or(0.) as f32
+                                                    });
+                                                }
                                                 _ => res = CtrlRes::UnknownCommand
                                             },
                                             _ => res = CtrlRes::UnknownCommand

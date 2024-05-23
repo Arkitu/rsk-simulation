@@ -89,6 +89,8 @@ impl Control {
                         break
                     }
                 }
+
+                ctrl_socket.unbind("tcp://*:7558").unwrap();
             });
         }
     }
