@@ -80,6 +80,27 @@ wasm_server_runner = [
     "dep:fastrand",
     "dep:rcgen"
 ]
+zeromq = [
+    "dep:thiserror",
+    "dep:futures-channel",
+    "dep:futures-io",
+    "dep:futures-task",
+    "dep:futures-util",
+    "dep:async-trait",
+    "dep:parking_lot",
+    "dep:rand",
+    "dep:bytes",
+    "dep:tokio",
+    "dep:tokio-util",
+    "dep:num-traits",
+    "dep:dashmap",
+    "dep:crossbeam-queue",
+    "dep:uuid",
+    "dep:regex",
+    "dep:once_cell",
+    "dep:log",
+    "dep:asynchronous-codec"
+]
 
 # server: simu + gc + control / client: gui
 alternative_http_server = ["standard_control", "standard_gc", "http_server_gui"]
@@ -102,7 +123,7 @@ bevy = { version = "0.13", default-features = false, features = [
 ], optional = true }
 url = { version = "2.5", optional = true }
 rand = { version = "0.8", optional = true }
-futures-util = { version = "0.3", optional = true }
+futures-util = { version = "0.3", features = ["sink"], optional = true }
 
 # Control
 zmq = { version = "0.10", optional = true }
@@ -140,6 +161,27 @@ http = { version = "1.1", optional = true }
 tower = { version = "0.4", optional = true }
 fastrand = { version = "2.0", optional = true }
 rcgen = { version = "0.12", default-features = false, features = ["ring"], optional = true }
+
+# zeromq (https://github.com/zeromq/zmq.rs)
+thiserror = { version = "1", optional = true }
+futures-channel = { version = "0.3", features = ["sink"], optional = true }
+futures-io = { version = "0.3", optional = true }
+futures-task = { version = "0.3", optional = true }
+# futures-util = { version = "0.3", features = ["sink"] }
+async-trait = { version = "0.1", optional = true }
+parking_lot = { version = "0.12", optional = true }
+# rand = "0.8"
+bytes = { version = "1", optional = true }
+# tokio = { version = "1", features = ["full"], optional = true }
+tokio-util = { version = "0.7", features = ["compat"], optional = true }
+num-traits = { version = "0.2", optional = true }
+dashmap = { version = "5", optional = true }
+crossbeam-queue = { version = "0.3", optional = true }
+uuid = { version = "1", features = ["v4"], optional = true }
+regex = { version = "1", default-features = false, features = ["std", "unicode-perl"], optional = true }
+once_cell = { version = "1", optional = true }
+log = { version = "0.4", optional = true }
+asynchronous-codec = { version = "0.7", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 log = "0.4"

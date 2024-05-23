@@ -17,6 +17,9 @@ mod control;
 #[cfg(feature = "wasm_server_runner")]
 mod wasm_server_runner;
 
+#[cfg(feature = "zeromq")]
+mod zeromq;
+
 #[cfg(all(feature = "standard_gc", not(feature = "http_client_control")))]
 fn main() {
     #[cfg(target_arch = "wasm32")]
@@ -72,7 +75,7 @@ async fn main() {
     use futures_util::{future::{select, Either}, SinkExt, StreamExt};
     use serde_json::Value;
     use tmq::{publish::Publish, request_reply::RequestReceiver, Context, Multipart};
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, join, net::{TcpListener, TcpSocket, TcpStream}, sync::{mpsc, oneshot, watch, Mutex}, time::Instant};
+    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, join, net::{TcpListener, TcpSocket, TcpStream}, sync::{mpsc, oneshot, watch, Mutex}, time::{sleep, Instant}};
     use tokio_tungstenite::tungstenite::Message;
     use tracing::{error, info, warn};
     use crate::http::{WS_PORT, default::ClientMsg};
@@ -158,9 +161,7 @@ async fn main() {
     let state = TcpListener::bind("127.0.0.1:7558").await.unwrap();
 
     // The socket waiting to be paired
-    let state_orphan = Arc::new(Mutex::new(None::<(TcpStream, SocketAddr)>));
-    // The pairs that are not yet matched with a simulation
-    let available_ports = Arc::new(Mutex::new((10200..10500).collect::<Vec<u16>>()));
+    let state_orphan = Arc::new(Mutex::new(None::<oneshot::Sender<watch::Receiver<String>>>));
     let context = Context::new();
 
     // Thread that manages incoming ctrls sockets
@@ -170,58 +171,78 @@ async fn main() {
     tokio::spawn(async move {
         while let Ok((mut stream, addr)) = ctrl.accept().await {
             dbg!("ctrl", addr);
-            let port = match available_ports.lock().await.pop() {
+            let port = match ss.lock().await.available_ports.pop() {
                 Some(p) => p,
                 None => {
                     error!("Not enough available ports");
                     continue
                 }
             };
-            // Redirect all incoming traffic in the port
-            tokio::spawn(async move {
-                let mut local_stream = TcpSocket::new_v4()
+
+            // Create the zmq socket that receives controls
+            dbg!(port);
+            let ctrl_socket = tmq::reply(&ctx).bind(&format!("tcp://*:{}", port)).unwrap();
+            sleep(Duration::from_secs(1)).await;
+
+            let intern_stream = TcpSocket::new_v4()
                     .unwrap()
                     .connect(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port)))
                     .await
                     .unwrap();
+
+            let (mut incoming_read, mut incoming_write) = stream.into_split();
+            let (mut intern_read, mut intern_write) = intern_stream.into_split();
+
+            // Forward traffic from incoming to intern
+            tokio::spawn(async move {
                 loop {
-                    let mut data = [0u8; 64];
-                    stream.read(&mut data).await.unwrap();
-                    local_stream.write(&data).await.unwrap();
+                    let mut buf = [0u8; 64];
+                    let n = incoming_read.read(&mut buf).await.unwrap();
+                    dbg!(n);
+                    intern_write.write_all(&buf[0..n]).await.unwrap();
+                    if n == 0 {
+                        return
+                    }
                 }
             });
-            // Create the zmq socket that receives controls
-            let socket = tmq::reply(&ctx).bind(&format!("tcp://*:{}", port)).unwrap();
+
+            // Forward traffic from intern to incoming
+            tokio::spawn(async move {
+                loop {
+                    let mut buf = [0u8; 64];
+                    let n = intern_read.read(&mut buf).await.unwrap();
+                    dbg!(n);
+                    incoming_write.write_all(&buf[0..n]).await.unwrap();
+                    if n == 0 {
+                        return
+                    }
+                }
+            });
             
-            let state_socket = Arc::new(Mutex::new(None::<u16>));
+            let (state_rcv_tx, mut state_rcv_rx) = oneshot::channel::<watch::Receiver<String>>();
+
             // Wait for the state socket
-            let state_s = state_socket.clone();
             let so = so.clone();
             tokio::spawn(async move {
                 let start = Instant::now();
-                loop {
-                    if start.elapsed() > Duration::from_millis(3000) {
-                        // Poison state_socket to crash pair thread
-                        let _lock = state_s.lock().await;
-                        panic!("Timeout for state socket detection (this is a normal error)");
-                    }
-                    if let Some(socket) = so.lock().await.take() {
-                        *state_s.lock().await = Some(socket);
-                        break
+                while start.elapsed() < Duration::from_millis(3000) {
+                    if let Some(tx) = so.lock().await.take() {
+                        tx.send(state_rcv_rx.await.unwrap()).unwrap();
+                        return
                     }
                 }
+                warn!("No state socket matching ctrl socket received within a 3 seconde delay");
+                state_rcv_rx.close();
             });
-            
-            let mut rcv = ss.lock().await.lobby().state_rcv.clone();
-            
 
             let sessions = ss.clone();
             let session_socket = tmq::request(&ctx);
             tokio::spawn(async move {
                 // Wait for the first message to match the socket with the session which's id correspond to the key of the message
-                let (msg, sender) = socket.recv().await.unwrap();
+                let (msg, sender) = ctrl_socket.recv().await.unwrap();
                 let (key, _, _, _) : (String, String, u8, Vec<Value>) = serde_json::from_slice(msg.iter().last().unwrap()).unwrap();
                 let session = sessions.lock().await.find_with_id(&key).unwrap().clone();
+                state_rcv_tx.send(session.state_rcv.clone()).unwrap();
                 let session_socket = session_socket.connect(&format!("tcp://127.0.0.1:{}", session.ctrl_port)).unwrap();
                 
                 // Forward all ctrls to session's ctrl socket
@@ -241,10 +262,13 @@ async fn main() {
         }
     });
 
+    // Thread that manages incoming state sockets
     let ss = sessions.clone();
+    let so = state_orphan.clone();
     let ctx = context.clone();
     tokio::spawn(async move {
         while let Ok((mut stream, addr)) = state.accept().await {
+            dbg!("state", addr);
             let port = match ss.lock().await.available_ports.pop() {
                 Some(p) => p,
                 None => {
@@ -252,12 +276,20 @@ async fn main() {
                     continue;
                 }
             };
+            dbg!(port);
+
+            let (state_rcv_tx, mut state_rcv_rx) = oneshot::channel::<watch::Receiver<String>>();
+            *so.lock().await = Some(state_rcv_tx);
 
             let mut rcv = ss.lock().await.lobby().state_rcv.clone();
-            let (state_rcv_tx, state_rcv_rx) = oneshot::channel::<watch::Receiver<String>>();
             let ctx = ctx.clone();
+            // let mut state_socket = tmq::publish(&ctx).bind(&format!("tcp://*:{}", port)).unwrap();
+            let mut state_socket = tmq::publish(&ctx).bind(&format!("tcp://*:7558")).unwrap();
+            let json = rcv.borrow().clone();
+            state_socket.send(vec![&json]).await.unwrap();
+            sleep(Duration::from_secs(1)).await;
             tokio::spawn(async move {
-                let mut state_socket = tmq::publish(&ctx).bind(&format!("tcp://*:{}", port)).unwrap();
+                // Send lobby game state while waiting for the good session
                 loop {
                     match state_rcv_rx.try_recv() {
                         Ok(r) => {
@@ -265,32 +297,53 @@ async fn main() {
                             break
                         },
                         Err(oneshot::error::TryRecvError::Empty) => {
-
+                            let json = rcv.borrow().clone();
+                            state_socket.send(vec![&json]).await.unwrap();
                         },
                         Err(e) => Err(e).unwrap()
                     }
-                    state_socket.send(rcv);
                 }
+                // Send session's game state
                 loop {
-
+                    let json = rcv.borrow().clone();
+                    state_socket.send(vec![&json]).await.unwrap();
                 }
             });
 
-            // Redirect all incoming traffic in the port
-            tokio::spawn(async move {
-                let mut local_stream = TcpSocket::new_v4()
+            let intern_stream = TcpSocket::new_v4()
                     .unwrap()
                     .connect(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port)))
                     .await
                     .unwrap();
+
+            let (mut incoming_read, mut incoming_write) = stream.into_split();
+            let (mut intern_read, mut intern_write) = intern_stream.into_split();
+
+            // Forward traffic from incoming to intern
+            tokio::spawn(async move {
                 loop {
-                    let mut data = [0u8; 64];
-                    stream.read(&mut data).await.unwrap();
-                    local_stream.write(&data).await.unwrap();
+                    let mut buf = [0u8; 64];
+                    let n = incoming_read.read(&mut buf).await.unwrap();
+                    dbg!(n);
+                    intern_write.write_all(&buf[0..n]).await.unwrap();
+                    if n == 0 {
+                        return
+                    }
                 }
             });
 
-            
+            // Forward traffic from intern to incoming
+            tokio::spawn(async move {
+                loop {
+                    let mut buf = [0u8; 128];
+                    let n = intern_read.read(&mut buf).await.unwrap();
+                    dbg!(n);
+                    incoming_write.write_all(&buf[0..n]).await.unwrap();
+                    // if n == 0 {
+                    //     return
+                    // }
+                }
+            });
         }
     });
 
