@@ -27,7 +27,12 @@ pub(crate) struct Subscriber {
 }
 
 pub(crate) struct PubSocketBackend {
-    subscribers: DashMap<PeerIdentity, Subscriber>,
+    pub orphan_sub: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<PeerIdentity>>>>,
+    /// ctrl --> state
+    pub peers: Arc<DashMap<PeerIdentity, PeerIdentity>>,
+    /// state --> sesstion's id
+    pub session_subscribers: Arc<DashMap<String, Vec<PeerIdentity>>>,
+    pub subscribers: DashMap<PeerIdentity, Subscriber>,
     socket_monitor: Mutex<Option<mpsc::Sender<SocketEvent>>>,
     socket_options: SocketOptions,
 }
@@ -103,6 +108,17 @@ impl SocketBackend for PubSocketBackend {
 #[async_trait]
 impl MultiPeerBackend for PubSocketBackend {
     async fn peer_connected(self: Arc<Self>, peer_id: &PeerIdentity, io: FramedIo) {
+        let (s, r) = tokio::sync::oneshot::channel();
+        *self.orphan_sub.lock().await = Some(s);
+        let ctrl_id = match r.await {
+            Ok(p) => p,
+            Err(_) => {
+                log::warn!("Disconnecting orphan state socket");
+                return
+            }
+        };
+        self.peers.insert(ctrl_id, peer_id.clone());
+
         let (mut recv_queue, send_queue) = io.into_parts();
         // TODO provide handling for recv_queue
         let (sender, stop_receiver) = oneshot::channel();
@@ -160,6 +176,54 @@ impl Drop for PubSocket {
     }
 }
 
+impl PubSocket {
+    pub async fn set_session_for_subscriber(&mut self, subscriber: &PeerIdentity, id: &str) {
+        self.backend
+            .subscribers
+            .get_mut(subscriber)
+            .unwrap()
+            .subscriptions = vec![id.as_bytes().to_vec()];
+    }
+    pub async fn send_for_id(&mut self, message: ZmqMessage, id: &str) -> ZmqResult<()> {
+        let mut dead_peers = Vec::new();
+        for mut subscriber in self.backend.subscribers.iter_mut() {
+            for sub_filter in &subscriber.subscriptions {
+                if sub_filter.as_slice() == id.as_bytes()
+                {
+                    let res = subscriber
+                        .send_queue
+                        .as_mut()
+                        .try_send(Message::Message(message.clone()));
+                    match res {
+                        Ok(()) => {}
+                        Err(ZmqError::Codec(CodecError::Io(e))) => {
+                            if e.kind() == ErrorKind::BrokenPipe {
+                                dead_peers.push(subscriber.key().clone());
+                            } else {
+                                dbg!(e);
+                            }
+                        }
+                        Err(ZmqError::BufferFull(_)) => {
+                            // ignore silently. https://rfc.zeromq.org/spec/29/ says:
+                            // For processing outgoing messages:
+                            //   SHALL silently drop the message if the queue for a subscriber is full.
+                        }
+                        Err(e) => {
+                            dbg!(e);
+                            todo!()
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        for peer in dead_peers {
+            self.backend.peer_disconnected(&peer);
+        }
+        Ok(())
+    }
+}
+
 #[async_trait]
 impl SocketSend for PubSocket {
     async fn send(&mut self, message: ZmqMessage) -> ZmqResult<()> {
@@ -210,6 +274,9 @@ impl Socket for PubSocket {
     fn with_options(options: SocketOptions) -> Self {
         Self {
             backend: Arc::new(PubSocketBackend {
+                orphan_sub: Arc::new(tokio::sync::Mutex::new(None)),
+                peers: Arc::new(DashMap::new()),
+                session_subscribers: Arc::new(DashMap::new()),
                 subscribers: DashMap::new(),
                 socket_monitor: Mutex::new(None),
                 socket_options: options,

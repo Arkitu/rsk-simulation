@@ -10,9 +10,11 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use futures_util::{SinkExt, StreamExt};
 use parking_lot::Mutex;
+use tokio::time::Instant;
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 struct RepPeer {
     pub(crate) _identity: PeerIdentity,
@@ -20,6 +22,7 @@ struct RepPeer {
 }
 
 struct RepSocketBackend {
+    pub orphan_sub: Arc<tokio::sync::Mutex<Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<PeerIdentity>>>>>>,
     pub(crate) peers: DashMap<PeerIdentity, RepPeer>,
     fair_queue_inner: Arc<Mutex<QueueInner<ZmqFramedRead, PeerIdentity>>>,
     socket_monitor: Mutex<Option<mpsc::Sender<SocketEvent>>>,
@@ -27,7 +30,7 @@ struct RepSocketBackend {
 }
 
 pub struct RepSocket {
-    backend: Arc<RepSocketBackend>,
+    pub backend: Arc<RepSocketBackend>,
     envelope: Option<ZmqMessage>,
     current_request: Option<PeerIdentity>,
     fair_queue: FairQueue<ZmqFramedRead, PeerIdentity>,
@@ -46,6 +49,7 @@ impl Socket for RepSocket {
         let fair_queue = FairQueue::new(true);
         Self {
             backend: Arc::new(RepSocketBackend {
+                orphan_sub: Arc::new(tokio::sync::Mutex::new(Arc::new(tokio::sync::Mutex::new(None)))),
                 peers: DashMap::new(),
                 fair_queue_inner: fair_queue.inner(),
                 socket_monitor: Mutex::new(None),
@@ -88,6 +92,24 @@ impl MultiPeerBackend for RepSocketBackend {
         self.fair_queue_inner
             .lock()
             .insert(peer_id.clone(), recv_queue);
+
+        let orphan = self.orphan_sub.clone();
+        let peer_id = peer_id.clone();
+        tokio::spawn(async move {
+            let start = Instant::now();
+            loop {
+                match orphan.lock().await.lock().await.take() {
+                    Some(s) => {
+                        s.send(peer_id);
+                        break
+                    },
+                    None => if start.elapsed() > Duration::from_secs(3) {
+                        log::warn!("Ctrl socket matching timeout");
+                        break
+                    }
+                }
+            }
+        });
     }
 
     fn peer_disconnected(&self, peer_id: &PeerIdentity) {

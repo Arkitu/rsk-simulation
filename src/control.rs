@@ -2,9 +2,9 @@
 use serde::{ser::SerializeTuple, Serialize};
 
 #[derive(Debug)]
-enum CtrlRes {
+pub enum CtrlRes {
     UnknownError,
-    // (team)
+    /// (team)
     BadKey(String),
     Preempted(String, u8, String),
     UnknownRobot(String, u8),

@@ -79,8 +79,9 @@ async fn main() {
     use tokio_tungstenite::tungstenite::Message;
     use tracing::{error, info, warn};
     use crate::zeromq::prelude::*;
-    use crate::{http::{default::ClientMsg, WS_PORT}};
+    use crate::http::{default::ClientMsg, WS_PORT};
     use crate::game_state::GameState;
+    use crate::control::CtrlRes;
 
     let DEFAULT_GAME_STATE_JSON = serde_json::to_string(&GameState::default()).unwrap();
 
@@ -157,7 +158,7 @@ async fn main() {
         available_ports: (10202..10500).collect() // Arbitrary
     }));
 
-    //
+    // session_id --> (sender, receiver)
     let ctrl_sessions = Arc::new(DashMap::<
             String, // session's id
             (
@@ -166,10 +167,16 @@ async fn main() {
             )
         >::new());
 
+    let state_socket = zeromq::PubSocket::new();
+
     // ctrl socket
     let ctrls = ctrl_sessions.clone();
+    let orphan_sub = state_socket.backend.orphan_sub.clone();
+    let peers = state_socket.backend.peers.clone();
+    let session_subscribers = state_socket.backend.session_subscribers.clone();
     tokio::spawn(async move {
         let socket = zeromq::RepSocket::new();
+        *socket.backend.orphan_sub.lock().await = orphan_sub;
         socket.bind("tcp://*:7557").await.unwrap();
 
         loop {
@@ -187,13 +194,30 @@ async fn main() {
                     continue
                 }
             };
-            match ctrls.get(&key) {
+            
+            let res = match ctrls.get(&key) {
                 Some(ctrl) => {
-                    let (sender, receiver) = ctrl.pair();
-                }
-            }
+                    let (_, (sender, receiver)) = ctrl.pair();
+                    sender.send((team, number, cmd)).await.unwrap();
+                    receiver.recv().await.unwrap()
+                },
+                None => serde_json::to_vec(&CtrlRes::BadKey("you must put your session's id in your key".to_string())).unwrap()
+            };
+            socket.send(res.into()).await.unwrap();
         }
     });
+
+    let socket = state_socket;
+    let (state_socket, mut rcv) = mpsc::unbounded_channel::<(String, Vec<u8>)>();
+    tokio::spawn(async move {
+        socket.bind("tcp://*:7558").await.unwrap();
+        loop {
+            let (id, msg) = rcv.recv().await.unwrap();
+            socket.send_for_id(msg.into(), &id).await.unwrap();
+        }
+    });
+
+    
 
     // Redirect tcp messages to the good session
     let ctrl = TcpListener::bind("127.0.0.1:7557").await.unwrap();
