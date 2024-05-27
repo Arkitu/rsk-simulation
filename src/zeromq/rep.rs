@@ -32,7 +32,7 @@ struct RepSocketBackend {
 pub struct RepSocket {
     pub backend: Arc<RepSocketBackend>,
     envelope: Option<ZmqMessage>,
-    current_request: Option<PeerIdentity>,
+    pub current_request: Option<PeerIdentity>,
     fair_queue: FairQueue<ZmqFramedRead, PeerIdentity>,
     binds: HashMap<Endpoint, AcceptStopHandle>,
 }

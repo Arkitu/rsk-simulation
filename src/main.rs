@@ -78,60 +78,60 @@ async fn main() {
     use tokio::{io::{AsyncReadExt, AsyncWriteExt}, join, net::{TcpListener, TcpSocket, TcpStream}, sync::{mpsc, oneshot, watch, Mutex}, time::{sleep, Instant}};
     use tokio_tungstenite::tungstenite::Message;
     use tracing::{error, info, warn};
-    use crate::zeromq::prelude::*;
+    use crate::zeromq::{prelude::*, util::PeerIdentity};
     use crate::http::{default::ClientMsg, WS_PORT};
     use crate::game_state::GameState;
     use crate::control::CtrlRes;
 
     let DEFAULT_GAME_STATE_JSON = serde_json::to_string(&GameState::default()).unwrap();
 
-    #[derive(Clone)]
-    struct Session {
-        id: String,
-        ws: SocketAddr,
-        // Receives game state json
-        state_rcv: watch::Receiver<String>,
-        ctrl_port: u16,
-    }
+    // #[derive(Clone)]
+    // struct Session {
+    //     id: String,
+    //     ws: SocketAddr,
+    //     // Receives game state json
+    //     state_rcv: watch::Receiver<String>,
+    //     ctrl_port: u16,
+    // }
 
-    struct Sessions {
-        inner: Vec<Session>,
-        lobby: Session,
-        available_ports: Vec<u16>
-    }
-    impl Sessions {
-        // Return error if there are not enough ports available
-        fn insert(&mut self, id: String, ws: SocketAddr) -> Result<(u16, watch::Sender<String>), ()> {
-            let ctrl_port = self.available_ports.pop().ok_or(())?;
-            let (tx, state_rcv) = watch::channel(serde_json::to_string(&GameState::default()).unwrap());
-            self.inner.push(Session {
-                id,
-                ws,
-                state_rcv,
-                ctrl_port
-            });
-            Ok((ctrl_port, tx))
-        }
-        // fn find_with_addr(&self, addr: &SocketAddr) -> Option<&Session> {
-        //     self.inner.iter().find(|s| {
-        //         &s.ws == addr || s.ctrls.contains(addr) || s.states.contains(addr)
-        //     })
-        // }
-        // fn find_with_ip(&self, ip: &IpAddr) -> Option<&Session> {
-        //     self.inner.iter().find(|s| {
-        //         &s.ws.ip() == ip || s.ctrls.iter().any(|a| &a.ip() == ip) || s.states.iter().any(|a| &a.ip() == ip)
-        //     })
-        // }
-        fn find_with_id(&self, id: &str) -> Option<&Session> {
-            self.inner.iter().find(|s| {
-                &s.id == id
-            })
-        }
-        /// Session with id="" that serves as a lobby for the sockets that are not yet matched with their session
-        const fn lobby(&self) -> &Session {
-            &self.lobby
-        }
-    }
+    // struct Sessions {
+    //     inner: Vec<Session>,
+    //     lobby: Session,
+    //     available_ports: Vec<u16>
+    // }
+    // impl Sessions {
+    //     // Return error if there are not enough ports available
+    //     fn insert(&mut self, id: String, ws: SocketAddr) -> Result<(u16, watch::Sender<String>), ()> {
+    //         let ctrl_port = self.available_ports.pop().ok_or(())?;
+    //         let (tx, state_rcv) = watch::channel(serde_json::to_string(&GameState::default()).unwrap());
+    //         self.inner.push(Session {
+    //             id,
+    //             ws,
+    //             state_rcv,
+    //             ctrl_port
+    //         });
+    //         Ok((ctrl_port, tx))
+    //     }
+    //     // fn find_with_addr(&self, addr: &SocketAddr) -> Option<&Session> {
+    //     //     self.inner.iter().find(|s| {
+    //     //         &s.ws == addr || s.ctrls.contains(addr) || s.states.contains(addr)
+    //     //     })
+    //     // }
+    //     // fn find_with_ip(&self, ip: &IpAddr) -> Option<&Session> {
+    //     //     self.inner.iter().find(|s| {
+    //     //         &s.ws.ip() == ip || s.ctrls.iter().any(|a| &a.ip() == ip) || s.states.iter().any(|a| &a.ip() == ip)
+    //     //     })
+    //     // }
+    //     fn find_with_id(&self, id: &str) -> Option<&Session> {
+    //         self.inner.iter().find(|s| {
+    //             &s.id == id
+    //         })
+    //     }
+    //     /// Session with id="" that serves as a lobby for the sockets that are not yet matched with their session
+    //     const fn lobby(&self) -> &Session {
+    //         &self.lobby
+    //     }
+    // }
 
     // Host the page and wasm file
     tokio::spawn(wasm_server_runner::main(
@@ -147,23 +147,23 @@ async fn main() {
         }
     });
 
-    let sessions: Arc<Mutex<Sessions>> = Arc::new(Mutex::new(Sessions {
-        inner: Vec::new(),
-        lobby: Session {
-            id: "".to_string(),
-            ws: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0),
-            state_rcv: rx,
-            ctrl_port: 10200
-        },
-        available_ports: (10202..10500).collect() // Arbitrary
-    }));
+    // let sessions: Arc<Mutex<Sessions>> = Arc::new(Mutex::new(Sessions {
+    //     inner: Vec::new(),
+    //     lobby: Session {
+    //         id: "".to_string(),
+    //         ws: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0),
+    //         state_rcv: rx,
+    //         ctrl_port: 10200
+    //     },
+    //     available_ports: (10202..10500).collect() // Arbitrary
+    // }));
 
     // session_id --> (sender, receiver)
     let ctrl_sessions = Arc::new(DashMap::<
             String, // session's id
             (
-                mpsc::Sender<(String, u8, Vec<Value>)>, // (team, number, command)
-                mpsc::Receiver<Vec<u8>> // response in bytes
+                mpsc::UnboundedSender<(String, u8, Vec<Value>)>, // (team, number, command)
+                mpsc::UnboundedReceiver<Vec<u8>> // response in bytes
             )
         >::new());
 
@@ -172,9 +172,11 @@ async fn main() {
     // ctrl socket
     let ctrls = ctrl_sessions.clone();
     let orphan_sub = state_socket.backend.orphan_sub.clone();
-    let peers = state_socket.backend.peers.clone();
+    let pairs: Arc<DashMap<zeromq::util::PeerIdentity, zeromq::util::PeerIdentity>> = state_socket.backend.pairs.clone();
     let session_subscribers = state_socket.backend.session_subscribers.clone();
     tokio::spawn(async move {
+        // Pairs represented by their ctrl peer id
+        let mut matched_pairs: Vec<PeerIdentity> = Vec::new();
         let socket = zeromq::RepSocket::new();
         *socket.backend.orphan_sub.lock().await = orphan_sub;
         socket.bind("tcp://*:7557").await.unwrap();
@@ -197,8 +199,13 @@ async fn main() {
             
             let res = match ctrls.get(&key) {
                 Some(ctrl) => {
+                    let ctrl_id = socket.current_request.unwrap();
+                    if !matched_pairs.contains(&ctrl_id) {
+                        session_subscribers.get_mut(&key).unwrap().push(*pairs.get(&ctrl_id).unwrap());
+                        matched_pairs.push(ctrl_id);
+                    }
                     let (_, (sender, receiver)) = ctrl.pair();
-                    sender.send((team, number, cmd)).await.unwrap();
+                    sender.send((team, number, cmd)).unwrap();
                     receiver.recv().await.unwrap()
                 },
                 None => serde_json::to_vec(&CtrlRes::BadKey("you must put your session's id in your key".to_string())).unwrap()
@@ -217,219 +224,207 @@ async fn main() {
         }
     });
 
-    
+    // // Redirect tcp messages to the good session
+    // let ctrl = TcpListener::bind("127.0.0.1:7557").await.unwrap();
+    // let state = TcpListener::bind("127.0.0.1:7558").await.unwrap();
 
-    // Redirect tcp messages to the good session
-    let ctrl = TcpListener::bind("127.0.0.1:7557").await.unwrap();
-    let state = TcpListener::bind("127.0.0.1:7558").await.unwrap();
+    // // The socket waiting to be paired
+    // let state_orphan = Arc::new(Mutex::new(None::<oneshot::Sender<watch::Receiver<String>>>));
 
-    // The socket waiting to be paired
-    let state_orphan = Arc::new(Mutex::new(None::<oneshot::Sender<watch::Receiver<String>>>));
+    // // Thread that manages incoming ctrls sockets
+    // let ss = sessions.clone();
+    // let so = state_orphan.clone();
+    // tokio::spawn(async move {
+    //     while let Ok((mut stream, addr)) = ctrl.accept().await {
+    //         dbg!("ctrl", addr);
+    //         let port = match ss.lock().await.available_ports.pop() {
+    //             Some(p) => p,
+    //             None => {
+    //                 error!("Not enough available ports");
+    //                 continue
+    //             }
+    //         };
 
-    // Thread that manages incoming ctrls sockets
-    let ss = sessions.clone();
-    let so = state_orphan.clone();
-    tokio::spawn(async move {
-        while let Ok((mut stream, addr)) = ctrl.accept().await {
-            dbg!("ctrl", addr);
-            let port = match ss.lock().await.available_ports.pop() {
-                Some(p) => p,
-                None => {
-                    error!("Not enough available ports");
-                    continue
-                }
-            };
+    //         // Create the zmq socket that receives controls
+    //         dbg!(port);
+    //         let ctrl_socket = tmq::reply(&ctx).bind(&format!("tcp://*:{}", port)).unwrap();
+    //         sleep(Duration::from_secs(1)).await;
 
-            // Create the zmq socket that receives controls
-            dbg!(port);
-            let ctrl_socket = tmq::reply(&ctx).bind(&format!("tcp://*:{}", port)).unwrap();
-            sleep(Duration::from_secs(1)).await;
+    //         let intern_stream = TcpSocket::new_v4()
+    //                 .unwrap()
+    //                 .connect(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port)))
+    //                 .await
+    //                 .unwrap();
 
-            let intern_stream = TcpSocket::new_v4()
-                    .unwrap()
-                    .connect(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port)))
-                    .await
-                    .unwrap();
+    //         let (mut incoming_read, mut incoming_write) = stream.into_split();
+    //         let (mut intern_read, mut intern_write) = intern_stream.into_split();
 
-            let (mut incoming_read, mut incoming_write) = stream.into_split();
-            let (mut intern_read, mut intern_write) = intern_stream.into_split();
+    //         // Forward traffic from incoming to intern
+    //         tokio::spawn(async move {
+    //             loop {
+    //                 let mut buf = [0u8; 64];
+    //                 let n = incoming_read.read(&mut buf).await.unwrap();
+    //                 dbg!(n);
+    //                 intern_write.write_all(&buf[0..n]).await.unwrap();
+    //                 if n == 0 {
+    //                     return
+    //                 }
+    //             }
+    //         });
 
-            // Forward traffic from incoming to intern
-            tokio::spawn(async move {
-                loop {
-                    let mut buf = [0u8; 64];
-                    let n = incoming_read.read(&mut buf).await.unwrap();
-                    dbg!(n);
-                    intern_write.write_all(&buf[0..n]).await.unwrap();
-                    if n == 0 {
-                        return
-                    }
-                }
-            });
-
-            // Forward traffic from intern to incoming
-            tokio::spawn(async move {
-                loop {
-                    let mut buf = [0u8; 64];
-                    let n = intern_read.read(&mut buf).await.unwrap();
-                    dbg!(n);
-                    incoming_write.write_all(&buf[0..n]).await.unwrap();
-                    if n == 0 {
-                        return
-                    }
-                }
-            });
+    //         // Forward traffic from intern to incoming
+    //         tokio::spawn(async move {
+    //             loop {
+    //                 let mut buf = [0u8; 64];
+    //                 let n = intern_read.read(&mut buf).await.unwrap();
+    //                 dbg!(n);
+    //                 incoming_write.write_all(&buf[0..n]).await.unwrap();
+    //                 if n == 0 {
+    //                     return
+    //                 }
+    //             }
+    //         });
             
-            let (state_rcv_tx, mut state_rcv_rx) = oneshot::channel::<watch::Receiver<String>>();
+    //         let (state_rcv_tx, mut state_rcv_rx) = oneshot::channel::<watch::Receiver<String>>();
 
-            // Wait for the state socket
-            let so = so.clone();
-            tokio::spawn(async move {
-                let start = Instant::now();
-                while start.elapsed() < Duration::from_millis(3000) {
-                    if let Some(tx) = so.lock().await.take() {
-                        tx.send(state_rcv_rx.await.unwrap()).unwrap();
-                        return
-                    }
-                }
-                warn!("No state socket matching ctrl socket received within a 3 seconde delay");
-                state_rcv_rx.close();
-            });
+    //         // Wait for the state socket
+    //         let so = so.clone();
+    //         tokio::spawn(async move {
+    //             let start = Instant::now();
+    //             while start.elapsed() < Duration::from_millis(3000) {
+    //                 if let Some(tx) = so.lock().await.take() {
+    //                     tx.send(state_rcv_rx.await.unwrap()).unwrap();
+    //                     return
+    //                 }
+    //             }
+    //             warn!("No state socket matching ctrl socket received within a 3 seconde delay");
+    //             state_rcv_rx.close();
+    //         });
 
-            let sessions = ss.clone();
-            let session_socket = tmq::request(&ctx);
-            tokio::spawn(async move {
-                // Wait for the first message to match the socket with the session which's id correspond to the key of the message
-                let (msg, sender) = ctrl_socket.recv().await.unwrap();
-                let (key, _, _, _) : (String, String, u8, Vec<Value>) = serde_json::from_slice(msg.iter().last().unwrap()).unwrap();
-                let session = sessions.lock().await.find_with_id(&key).unwrap().clone();
-                state_rcv_tx.send(session.state_rcv.clone()).unwrap();
-                let session_socket = session_socket.connect(&format!("tcp://127.0.0.1:{}", session.ctrl_port)).unwrap();
+    //         let sessions = ss.clone();
+    //         let session_socket = tmq::request(&ctx);
+    //         tokio::spawn(async move {
+    //             // Wait for the first message to match the socket with the session which's id correspond to the key of the message
+    //             let (msg, sender) = ctrl_socket.recv().await.unwrap();
+    //             let (key, _, _, _) : (String, String, u8, Vec<Value>) = serde_json::from_slice(msg.iter().last().unwrap()).unwrap();
+    //             let session = sessions.lock().await.find_with_id(&key).unwrap().clone();
+    //             state_rcv_tx.send(session.state_rcv.clone()).unwrap();
+    //             let session_socket = session_socket.connect(&format!("tcp://127.0.0.1:{}", session.ctrl_port)).unwrap();
                 
-                // Forward all ctrls to session's ctrl socket
-                let mut msg = Some(msg);
-                let mut session_sender = Some(session_socket);
-                let mut client_sender = Some(sender);
-                loop {
-                    let session_receiver = session_sender.take().unwrap().send(msg.take().unwrap()).await.unwrap();
-                    let (res, s_sender) = session_receiver.recv().await.unwrap();
-                    session_sender = Some(s_sender);
-                    let client_receiver = client_sender.take().unwrap().send(res).await.unwrap();
-                    let (req, c_sender) = client_receiver.recv().await.unwrap();
-                    msg = Some(req);
-                    client_sender = Some(c_sender);
-                }
-            });
-        }
-    });
+    //             // Forward all ctrls to session's ctrl socket
+    //             let mut msg = Some(msg);
+    //             let mut session_sender = Some(session_socket);
+    //             let mut client_sender = Some(sender);
+    //             loop {
+    //                 let session_receiver = session_sender.take().unwrap().send(msg.take().unwrap()).await.unwrap();
+    //                 let (res, s_sender) = session_receiver.recv().await.unwrap();
+    //                 session_sender = Some(s_sender);
+    //                 let client_receiver = client_sender.take().unwrap().send(res).await.unwrap();
+    //                 let (req, c_sender) = client_receiver.recv().await.unwrap();
+    //                 msg = Some(req);
+    //                 client_sender = Some(c_sender);
+    //             }
+    //         });
+    //     }
+    // });
 
-    // Thread that manages incoming state sockets
-    let ss = sessions.clone();
-    let so = state_orphan.clone();
-    let ctx = context.clone();
-    tokio::spawn(async move {
-        while let Ok((mut stream, addr)) = state.accept().await {
-            dbg!("state", addr);
-            let port = match ss.lock().await.available_ports.pop() {
-                Some(p) => p,
-                None => {
-                    error!("Not enough available ports");
-                    continue;
-                }
-            };
-            dbg!(port);
+    // // Thread that manages incoming state sockets
+    // let ss = sessions.clone();
+    // let so = state_orphan.clone();
+    // let ctx = context.clone();
+    // tokio::spawn(async move {
+    //     while let Ok((mut stream, addr)) = state.accept().await {
+    //         dbg!("state", addr);
+    //         let port = match ss.lock().await.available_ports.pop() {
+    //             Some(p) => p,
+    //             None => {
+    //                 error!("Not enough available ports");
+    //                 continue;
+    //             }
+    //         };
+    //         dbg!(port);
 
-            let (state_rcv_tx, mut state_rcv_rx) = oneshot::channel::<watch::Receiver<String>>();
-            *so.lock().await = Some(state_rcv_tx);
+    //         let (state_rcv_tx, mut state_rcv_rx) = oneshot::channel::<watch::Receiver<String>>();
+    //         *so.lock().await = Some(state_rcv_tx);
 
-            let mut rcv = ss.lock().await.lobby().state_rcv.clone();
-            let ctx = ctx.clone();
-            // let mut state_socket = tmq::publish(&ctx).bind(&format!("tcp://*:{}", port)).unwrap();
-            let mut state_socket = tmq::publish(&ctx).bind(&format!("tcp://*:7558")).unwrap();
-            let json = rcv.borrow().clone();
-            state_socket.send(vec![&json]).await.unwrap();
-            sleep(Duration::from_secs(1)).await;
-            tokio::spawn(async move {
-                // Send lobby game state while waiting for the good session
-                loop {
-                    match state_rcv_rx.try_recv() {
-                        Ok(r) => {
-                            rcv = r;
-                            break
-                        },
-                        Err(oneshot::error::TryRecvError::Empty) => {
-                            let json = rcv.borrow().clone();
-                            state_socket.send(vec![&json]).await.unwrap();
-                        },
-                        Err(e) => Err(e).unwrap()
-                    }
-                }
-                // Send session's game state
-                loop {
-                    let json = rcv.borrow().clone();
-                    state_socket.send(vec![&json]).await.unwrap();
-                }
-            });
+    //         let mut rcv = ss.lock().await.lobby().state_rcv.clone();
+    //         let ctx = ctx.clone();
+    //         // let mut state_socket = tmq::publish(&ctx).bind(&format!("tcp://*:{}", port)).unwrap();
+    //         let mut state_socket = tmq::publish(&ctx).bind(&format!("tcp://*:7558")).unwrap();
+    //         let json = rcv.borrow().clone();
+    //         state_socket.send(vec![&json]).await.unwrap();
+    //         sleep(Duration::from_secs(1)).await;
+    //         tokio::spawn(async move {
+    //             // Send lobby game state while waiting for the good session
+    //             loop {
+    //                 match state_rcv_rx.try_recv() {
+    //                     Ok(r) => {
+    //                         rcv = r;
+    //                         break
+    //                     },
+    //                     Err(oneshot::error::TryRecvError::Empty) => {
+    //                         let json = rcv.borrow().clone();
+    //                         state_socket.send(vec![&json]).await.unwrap();
+    //                     },
+    //                     Err(e) => Err(e).unwrap()
+    //                 }
+    //             }
+    //             // Send session's game state
+    //             loop {
+    //                 let json = rcv.borrow().clone();
+    //                 state_socket.send(vec![&json]).await.unwrap();
+    //             }
+    //         });
 
-            let intern_stream = TcpSocket::new_v4()
-                    .unwrap()
-                    .connect(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port)))
-                    .await
-                    .unwrap();
+    //         let intern_stream = TcpSocket::new_v4()
+    //                 .unwrap()
+    //                 .connect(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port)))
+    //                 .await
+    //                 .unwrap();
 
-            let (mut incoming_read, mut incoming_write) = stream.into_split();
-            let (mut intern_read, mut intern_write) = intern_stream.into_split();
+    //         let (mut incoming_read, mut incoming_write) = stream.into_split();
+    //         let (mut intern_read, mut intern_write) = intern_stream.into_split();
 
-            // Forward traffic from incoming to intern
-            tokio::spawn(async move {
-                loop {
-                    let mut buf = [0u8; 64];
-                    let n = incoming_read.read(&mut buf).await.unwrap();
-                    dbg!(n);
-                    intern_write.write_all(&buf[0..n]).await.unwrap();
-                    if n == 0 {
-                        return
-                    }
-                }
-            });
+    //         // Forward traffic from incoming to intern
+    //         tokio::spawn(async move {
+    //             loop {
+    //                 let mut buf = [0u8; 64];
+    //                 let n = incoming_read.read(&mut buf).await.unwrap();
+    //                 dbg!(n);
+    //                 intern_write.write_all(&buf[0..n]).await.unwrap();
+    //                 if n == 0 {
+    //                     return
+    //                 }
+    //             }
+    //         });
 
-            // Forward traffic from intern to incoming
-            tokio::spawn(async move {
-                loop {
-                    let mut buf = [0u8; 128];
-                    let n = intern_read.read(&mut buf).await.unwrap();
-                    dbg!(n);
-                    incoming_write.write_all(&buf[0..n]).await.unwrap();
-                    // if n == 0 {
-                    //     return
-                    // }
-                }
-            });
-        }
-    });
+    //         // Forward traffic from intern to incoming
+    //         tokio::spawn(async move {
+    //             loop {
+    //                 let mut buf = [0u8; 128];
+    //                 let n = intern_read.read(&mut buf).await.unwrap();
+    //                 dbg!(n);
+    //                 incoming_write.write_all(&buf[0..n]).await.unwrap();
+    //                 // if n == 0 {
+    //                 //     return
+    //                 // }
+    //             }
+    //         });
+    //     }
+    // });
 
     let ws = TcpListener::bind(format!("127.0.0.1:{}", WS_PORT)).await.expect("Can't create TcpListener");
     while let Ok((stream, addr)) = ws.accept().await {
-        let ctrl_socket = tmq::reply(&context);
-        let sessions = sessions.clone();
+        // let ctrl_socket = tmq::reply(&context);
+        let state_socket = state_socket.clone();
         tokio::spawn(async move {
             info!(target:"ws", "New incoming connection : {}", addr);
             let stream = tokio_tungstenite::accept_async(stream).await.unwrap();
             let (mut ws_write, mut ws_read) = stream.split();
             
-            let (ctrl_socket, state_sender) = if let Message::Binary(bits) = ws_read.next().await.unwrap().unwrap() {
+            let session_id = if let Message::Binary(bits) = ws_read.next().await.unwrap().unwrap() {
                 if let ClientMsg::InitialMsg(id) = bitcode::deserialize(&bits).unwrap() {
-                    let (ctrl_port, state_sender) = match sessions.lock().await.insert(id, addr) {
-                        Ok(p) => p,
-                        Err(_) => {
-                            error!("Not enough available ports");
-                            return
-                        }
-                    };
-                    (
-                        ctrl_socket.bind(&format!("tcp://*:{}", ctrl_port)).unwrap(),
-                        state_sender
-                    )
+                    id
                 } else {
                     error!(target: "ws", "First message is not InitialMsg");
                     return
@@ -438,6 +433,15 @@ async fn main() {
                 error!(target: "ws", "Expected bytes");
                 return
             };
+
+            let (snd, ctrl_receiver) = mpsc::unbounded_channel();
+            let (ctrl_sender, rcv) = mpsc::unbounded_channel();
+
+            ctrl_sessions.insert(session_id.clone(), (
+                snd,
+                rcv
+            )).unwrap();
+            session_subscribers.insert(session_id.clone(), Vec::new()).unwrap();
 
             let (res_sender, mut res_receiver) = mpsc::unbounded_channel();
 
@@ -451,8 +455,8 @@ async fn main() {
                                     return
                                 }
                                 ClientMsg::GameState(gs) => {
-                                    let json = serde_json::to_string(&gs).unwrap();
-                                    state_sender.send(json).unwrap()
+                                    let json = serde_json::to_vec(&gs).unwrap();
+                                    state_socket.send((session_id.clone(), json)).unwrap();
                                 },
                                 ClientMsg::CtrlRes(res) => {
                                     res_sender.send(res).unwrap();
@@ -475,16 +479,8 @@ async fn main() {
             // control thread
             // forwards controls to the websocket
             tokio::spawn(async move {
-                let mut receiver = Some(ctrl_socket);
                 loop {
-                    let (mut multipart, sender) = receiver.take().unwrap().recv().await.unwrap();
-                    let msg = match multipart.len() {
-                        1 => multipart.pop_front().unwrap(),
-                        x => {
-                            error!(target: "zmq", "Received message with {} parts!", x);
-                            break
-                        }
-                    };
+                    let (team, number, cmd) = ctrl_receiver.recv().await.unwrap();
                     if let Err(e) = ws_write.send(Message::Binary(msg.to_vec())).await {
                         error!(target: "ws", "Error when sending msg : {}", e);
                         break

@@ -29,7 +29,7 @@ pub(crate) struct Subscriber {
 pub(crate) struct PubSocketBackend {
     pub orphan_sub: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<PeerIdentity>>>>,
     /// ctrl --> state
-    pub peers: Arc<DashMap<PeerIdentity, PeerIdentity>>,
+    pub pairs: Arc<DashMap<PeerIdentity, PeerIdentity>>,
     /// state --> sesstion's id
     pub session_subscribers: Arc<DashMap<String, Vec<PeerIdentity>>>,
     pub subscribers: DashMap<PeerIdentity, Subscriber>,
@@ -117,7 +117,7 @@ impl MultiPeerBackend for PubSocketBackend {
                 return
             }
         };
-        self.peers.insert(ctrl_id, peer_id.clone());
+        self.pairs.insert(ctrl_id, peer_id.clone());
 
         let (mut recv_queue, send_queue) = io.into_parts();
         // TODO provide handling for recv_queue
@@ -275,7 +275,7 @@ impl Socket for PubSocket {
         Self {
             backend: Arc::new(PubSocketBackend {
                 orphan_sub: Arc::new(tokio::sync::Mutex::new(None)),
-                peers: Arc::new(DashMap::new()),
+                pairs: Arc::new(DashMap::new()),
                 session_subscribers: Arc::new(DashMap::new()),
                 subscribers: DashMap::new(),
                 socket_monitor: Mutex::new(None),
