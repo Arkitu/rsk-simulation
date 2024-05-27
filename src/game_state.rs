@@ -128,7 +128,9 @@ impl Default for RefereeTeamRobot {
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RefereeTeamRobots {
+    #[cfg_attr(feature = "serde", serde(rename = "1"))]
     pub one: RefereeTeamRobot,
+    #[cfg_attr(feature = "serde", serde(rename = "2"))]
     pub two: RefereeTeamRobot,
 }
 
@@ -193,7 +195,7 @@ pub struct GameState {
 impl Default for GameState {
     fn default() -> Self {
         Self {
-            ball: None,
+            ball: Some(Point::new(0., 0.)),
             markers: Markers::default(),
             referee: Referee::default()
         }

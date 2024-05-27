@@ -74,6 +74,7 @@ async fn main() {
     use std::{collections::HashMap, net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4}, sync::Arc, time::Duration};
     use dashmap::DashMap;
     use futures_util::{future::{select, Either}, SinkExt, StreamExt};
+    use http::default::ServerMsg;
     use serde_json::Value;
     use tokio::{io::{AsyncReadExt, AsyncWriteExt}, join, net::{TcpListener, TcpSocket, TcpStream}, sync::{mpsc, oneshot, watch, Mutex}, time::{sleep, Instant}};
     use tokio_tungstenite::tungstenite::Message;
@@ -82,8 +83,6 @@ async fn main() {
     use crate::http::{default::ClientMsg, WS_PORT};
     use crate::game_state::GameState;
     use crate::control::CtrlRes;
-
-    let DEFAULT_GAME_STATE_JSON = serde_json::to_string(&GameState::default()).unwrap();
 
     // #[derive(Clone)]
     // struct Session {
@@ -138,15 +137,6 @@ async fn main() {
         "./target/wasm32-unknown-unknown/debug/rsk-simulation.wasm".to_string(),
     ));
 
-    let (tx, rx) = watch::channel(DEFAULT_GAME_STATE_JSON.clone());
-
-    let dgsj = DEFAULT_GAME_STATE_JSON.clone();
-    tokio::spawn(async move {
-        loop {
-            tx.send(dgsj.clone()).unwrap();
-        }
-    });
-
     // let sessions: Arc<Mutex<Sessions>> = Arc::new(Mutex::new(Sessions {
     //     inner: Vec::new(),
     //     lobby: Session {
@@ -177,12 +167,13 @@ async fn main() {
     tokio::spawn(async move {
         // Pairs represented by their ctrl peer id
         let mut matched_pairs: Vec<PeerIdentity> = Vec::new();
-        let socket = zeromq::RepSocket::new();
+        let mut socket = zeromq::RepSocket::new();
         *socket.backend.orphan_sub.lock().await = orphan_sub;
-        socket.bind("tcp://*:7557").await.unwrap();
+        socket.bind("tcp://127.0.0.1:7558").await.unwrap();
 
         loop {
-            let req = match socket.recv().await.unwrap().get(0) {
+            let msg = socket.recv().await.unwrap();
+            let req = match msg.get(0) {
                 Some(req) => req,
                 None => {
                     warn!("Received empty message");
@@ -197,30 +188,50 @@ async fn main() {
                 }
             };
             
-            let res = match ctrls.get(&key) {
-                Some(ctrl) => {
-                    let ctrl_id = socket.current_request.unwrap();
+            let res = match ctrls.get_mut(&key) {
+                Some(mut ctrl) => {
+                    let ctrl_id = socket.current_request.clone().unwrap();
+                    dbg!(&ctrl_id);
                     if !matched_pairs.contains(&ctrl_id) {
-                        session_subscribers.get_mut(&key).unwrap().push(*pairs.get(&ctrl_id).unwrap());
+                        // Remove state from lobby
+                        let mut lobby = session_subscribers.get_mut("").unwrap();
+                        let index = lobby.iter().position(|id| id == &ctrl_id).unwrap();
+                        lobby.remove(index);
+
+                        // Add it to the subscription list of the session
+                        session_subscribers.get_mut(&key).unwrap().push(pairs.get(&ctrl_id).unwrap().clone());
                         matched_pairs.push(ctrl_id);
                     }
-                    let (_, (sender, receiver)) = ctrl.pair();
+                    let (_, (sender, receiver)) = ctrl.pair_mut();
                     sender.send((team, number, cmd)).unwrap();
                     receiver.recv().await.unwrap()
                 },
                 None => serde_json::to_vec(&CtrlRes::BadKey("you must put your session's id in your key".to_string())).unwrap()
             };
+            dbg!(String::from_utf8(res.clone()).unwrap());
             socket.send(res.into()).await.unwrap();
         }
     });
 
-    let socket = state_socket;
+    let session_subscribers = state_socket.backend.session_subscribers.clone();
+
+    let mut socket = state_socket;
     let (state_socket, mut rcv) = mpsc::unbounded_channel::<(String, Vec<u8>)>();
     tokio::spawn(async move {
-        socket.bind("tcp://*:7558").await.unwrap();
+        socket.bind("tcp://127.0.0.1:7557").await.unwrap();
         loop {
             let (id, msg) = rcv.recv().await.unwrap();
             socket.send_for_id(msg.into(), &id).await.unwrap();
+        }
+    });
+
+    // Lobby
+    let state = state_socket.clone();
+    tokio::spawn(async move {
+        let DEFAULT_GAME_STATE_JSON = serde_json::to_string(&GameState::default()).unwrap();
+        loop {
+            state.send(("".to_string(), DEFAULT_GAME_STATE_JSON.as_bytes().to_vec())).unwrap();
+            sleep(Duration::from_millis(500)).await;
         }
     });
 
@@ -417,6 +428,8 @@ async fn main() {
     while let Ok((stream, addr)) = ws.accept().await {
         // let ctrl_socket = tmq::reply(&context);
         let state_socket = state_socket.clone();
+        let session_subscribers = session_subscribers.clone();
+        let ctrl_sessions = ctrl_sessions.clone();
         tokio::spawn(async move {
             info!(target:"ws", "New incoming connection : {}", addr);
             let stream = tokio_tungstenite::accept_async(stream).await.unwrap();
@@ -434,17 +447,18 @@ async fn main() {
                 return
             };
 
-            let (snd, ctrl_receiver) = mpsc::unbounded_channel();
+            let (snd, mut ctrl_receiver) = mpsc::unbounded_channel();
             let (ctrl_sender, rcv) = mpsc::unbounded_channel();
 
             ctrl_sessions.insert(session_id.clone(), (
                 snd,
                 rcv
-            )).unwrap();
-            session_subscribers.insert(session_id.clone(), Vec::new()).unwrap();
+            ));
+            session_subscribers.insert(session_id.clone(), Vec::new());
 
             let (res_sender, mut res_receiver) = mpsc::unbounded_channel();
 
+            let s_id = session_id.clone();
             tokio::spawn(async move {
                 loop {
                     match ws_read.next().await.unwrap().unwrap() {
@@ -452,11 +466,13 @@ async fn main() {
                             match bitcode::deserialize(&bits).unwrap() {
                                 ClientMsg::InitialMsg(_) => {
                                     error!(target: "ws", "Received an second InitialMsg");
+                                    ctrl_sessions.remove(&s_id);
+                                    session_subscribers.remove(&s_id);
                                     return
                                 }
                                 ClientMsg::GameState(gs) => {
                                     let json = serde_json::to_vec(&gs).unwrap();
-                                    state_socket.send((session_id.clone(), json)).unwrap();
+                                    state_socket.send((s_id.clone(), json)).unwrap();
                                 },
                                 ClientMsg::CtrlRes(res) => {
                                     res_sender.send(res).unwrap();
@@ -465,11 +481,15 @@ async fn main() {
                         },
                         Message::Close(_) => {
                             info!(target: "ws", "socket closed");
+                            ctrl_sessions.remove(&s_id);
+                            session_subscribers.remove(&s_id);
                             return
                             // return Err(TError::ConnectionClosed)
                         },
                         _ => {
                             error!(target: "ws", "Expected bytes");
+                            ctrl_sessions.remove(&s_id);
+                            session_subscribers.remove(&s_id);
                             return
                         }
                     }
@@ -480,20 +500,21 @@ async fn main() {
             // forwards controls to the websocket
             tokio::spawn(async move {
                 loop {
-                    let (team, number, cmd) = ctrl_receiver.recv().await.unwrap();
-                    if let Err(e) = ws_write.send(Message::Binary(msg.to_vec())).await {
+                    let (team, number, cmd) = match ctrl_receiver.recv().await {
+                        Some(t) => t,
+                        None => {
+                            info!("ctrl thread closed");
+                            break
+                        }
+                    };
+                    if let Err(e) = ws_write.send(Message::Binary(bitcode::serialize(&ServerMsg::Ctrl(session_id.clone(), team, number, cmd)).unwrap())).await {
                         error!(target: "ws", "Error when sending msg : {}", e);
                         break
                     };
                     let res = res_receiver.recv().await.unwrap();
-                    match sender.send(Multipart(vec![res.into()].into())).await {
-                        Ok(r) => {
-                            receiver = Some(r);
-                        },
-                        Err(e) => {
-                            error!(target: "ctrl_socket", "Error when sending msg : {}", e);
-                            break
-                        }
+                    if let Err(_) = ctrl_sender.send(res) {
+                        warn!("channel closed");
+                        break
                     }
                 }
             });

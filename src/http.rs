@@ -35,6 +35,7 @@ pub mod alternative {
 
 #[cfg(feature = "default_http")]
 pub mod default {
+    use serde_json::Value;
     use crate::game_state::GameState;
 
     #[derive(Debug)]
@@ -44,5 +45,10 @@ pub mod default {
         InitialMsg(String),
         GameState(GameState),
         CtrlRes(Vec<u8>)
+    }
+
+    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+    pub enum ServerMsg {
+        Ctrl(String, String, u8, Vec<Value>)
     }
 }

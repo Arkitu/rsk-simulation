@@ -9,6 +9,7 @@ use super::{SocketType, ZmqResult};
 use async_trait::async_trait;
 use dashmap::DashMap;
 use futures_util::{SinkExt, StreamExt};
+use log::info;
 use parking_lot::Mutex;
 use tokio::time::Instant;
 
@@ -16,12 +17,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-struct RepPeer {
+pub struct RepPeer {
     pub(crate) _identity: PeerIdentity,
     pub(crate) send_queue: ZmqFramedWrite,
 }
 
-struct RepSocketBackend {
+pub struct RepSocketBackend {
     pub orphan_sub: Arc<tokio::sync::Mutex<Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<PeerIdentity>>>>>>,
     pub(crate) peers: DashMap<PeerIdentity, RepPeer>,
     fair_queue_inner: Arc<Mutex<QueueInner<ZmqFramedRead, PeerIdentity>>>,
@@ -80,6 +81,7 @@ impl Socket for RepSocket {
 #[async_trait]
 impl MultiPeerBackend for RepSocketBackend {
     async fn peer_connected(self: Arc<Self>, peer_id: &PeerIdentity, io: FramedIo) {
+        info!("req connected");
         let (recv_queue, send_queue) = io.into_parts();
 
         self.peers.insert(

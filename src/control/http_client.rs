@@ -5,7 +5,7 @@ use tracing::info;
 use wasm_sockets::{ConnectionStatus, EventClient, Message};
 
 use crate::game_state::{GameState, Robot, RobotTask};
-use crate::http::default::ClientMsg;
+use crate::http::default::{ClientMsg, ServerMsg};
 
 use super::CtrlRes;
 
@@ -31,9 +31,10 @@ impl Control {
                 Message::Binary(bits) => bits,
                 Message::Text(string) => string.into_bytes()
             };
+            let msg: ServerMsg = bitcode::deserialize(&req).unwrap();
             let mut res = CtrlRes::UnknownError;
-            match serde_json::from_slice::<(String, String, u8, Vec<Value>)>(&req) {
-                Ok((key, team, number, cmd)) => match team.as_str() {
+            match msg {
+                ServerMsg::Ctrl(key, team, number, cmd) => match team.as_str() {
                     "blue" | "green" => {
                         let num = (team == "green") as usize;
                         if keys[num] != key {

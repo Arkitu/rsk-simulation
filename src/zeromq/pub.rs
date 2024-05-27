@@ -13,6 +13,7 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use futures_channel::{mpsc, oneshot};
 use futures_util::{select, FutureExt, StreamExt};
+use log::info;
 use parking_lot::Mutex;
 
 use std::collections::HashMap;
@@ -39,6 +40,7 @@ pub(crate) struct PubSocketBackend {
 
 impl PubSocketBackend {
     fn message_received(&self, peer_id: &PeerIdentity, message: Message) {
+        dbg!(&message);
         let message = match message {
             Message::Message(m) => m,
             _ => return,
@@ -108,6 +110,7 @@ impl SocketBackend for PubSocketBackend {
 #[async_trait]
 impl MultiPeerBackend for PubSocketBackend {
     async fn peer_connected(self: Arc<Self>, peer_id: &PeerIdentity, io: FramedIo) {
+        info!("sub connected");
         let (s, r) = tokio::sync::oneshot::channel();
         *self.orphan_sub.lock().await = Some(s);
         let ctrl_id = match r.await {
@@ -118,6 +121,7 @@ impl MultiPeerBackend for PubSocketBackend {
             }
         };
         self.pairs.insert(ctrl_id, peer_id.clone());
+        self.session_subscribers.get_mut("").unwrap().push(peer_id.clone());
 
         let (mut recv_queue, send_queue) = io.into_parts();
         // TODO provide handling for recv_queue
@@ -177,44 +181,39 @@ impl Drop for PubSocket {
 }
 
 impl PubSocket {
-    pub async fn set_session_for_subscriber(&mut self, subscriber: &PeerIdentity, id: &str) {
-        self.backend
-            .subscribers
-            .get_mut(subscriber)
-            .unwrap()
-            .subscriptions = vec![id.as_bytes().to_vec()];
-    }
     pub async fn send_for_id(&mut self, message: ZmqMessage, id: &str) -> ZmqResult<()> {
         let mut dead_peers = Vec::new();
+        let subscribers = self.backend.session_subscribers.get(id).unwrap();
+        let subscribers = subscribers.pair().1;
+        if subscribers.len() > 0 {
+            dbg!(id, &subscribers);
+        }
         for mut subscriber in self.backend.subscribers.iter_mut() {
-            for sub_filter in &subscriber.subscriptions {
-                if sub_filter.as_slice() == id.as_bytes()
-                {
-                    let res = subscriber
-                        .send_queue
-                        .as_mut()
-                        .try_send(Message::Message(message.clone()));
-                    match res {
-                        Ok(()) => {}
-                        Err(ZmqError::Codec(CodecError::Io(e))) => {
-                            if e.kind() == ErrorKind::BrokenPipe {
-                                dead_peers.push(subscriber.key().clone());
-                            } else {
-                                dbg!(e);
-                            }
-                        }
-                        Err(ZmqError::BufferFull(_)) => {
-                            // ignore silently. https://rfc.zeromq.org/spec/29/ says:
-                            // For processing outgoing messages:
-                            //   SHALL silently drop the message if the queue for a subscriber is full.
-                        }
-                        Err(e) => {
+            if subscribers.contains(subscriber.pair().0) {
+                let res = subscriber
+                    .send_queue
+                    .as_mut()
+                    .try_send(Message::Message(message.clone()));
+                match res {
+                    Ok(()) => {}
+                    Err(ZmqError::Codec(CodecError::Io(e))) => {
+                        if e.kind() == ErrorKind::BrokenPipe {
+                            dead_peers.push(subscriber.key().clone());
+                        } else {
                             dbg!(e);
-                            todo!()
                         }
                     }
-                    break;
+                    Err(ZmqError::BufferFull(_)) => {
+                        // ignore silently. https://rfc.zeromq.org/spec/29/ says:
+                        // For processing outgoing messages:
+                        //   SHALL silently drop the message if the queue for a subscriber is full.
+                    }
+                    Err(e) => {
+                        dbg!(e);
+                        todo!()
+                    }
                 }
+                break;
             }
         }
         for peer in dead_peers {
@@ -272,11 +271,13 @@ impl CaptureSocket for PubSocket {}
 #[async_trait]
 impl Socket for PubSocket {
     fn with_options(options: SocketOptions) -> Self {
+        let session_subscribers = Arc::new(DashMap::new());
+        session_subscribers.insert("".to_string(), Vec::new());
         Self {
             backend: Arc::new(PubSocketBackend {
                 orphan_sub: Arc::new(tokio::sync::Mutex::new(None)),
                 pairs: Arc::new(DashMap::new()),
-                session_subscribers: Arc::new(DashMap::new()),
+                session_subscribers,
                 subscribers: DashMap::new(),
                 socket_monitor: Mutex::new(None),
                 socket_options: options,
