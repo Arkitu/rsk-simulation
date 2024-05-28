@@ -269,12 +269,10 @@ fn main() {
 
     console_log::init_with_level(log::Level::Debug).expect("error initializing log");
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-    info!("test");
     let mut location = web_sys::window().unwrap().location();
     let mut url = Url::parse(&location.href().unwrap()).unwrap();
     if url.path().len() <= 1 {
         url.set_path(&("/".to_string() + &Alphanumeric.sample_string(&mut rand::thread_rng(), 5)));
-        info!("{:?}", url);
         location.set_href(url.as_str()).unwrap();
         return
     }
@@ -283,6 +281,7 @@ fn main() {
     if session_id.starts_with("/") {
         session_id = &session_id[1..];
     }
+    info!("New session (id : {})", session_id);
 
     let mut gc = game_controller::GC::new("".to_string(), "".to_string(), session_id.to_string(), session_id.to_string(), false, session_id);
 
