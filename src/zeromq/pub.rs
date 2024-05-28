@@ -40,7 +40,6 @@ pub(crate) struct PubSocketBackend {
 
 impl PubSocketBackend {
     fn message_received(&self, peer_id: &PeerIdentity, message: Message) {
-        dbg!(&message);
         let message = match message {
             Message::Message(m) => m,
             _ => return,
