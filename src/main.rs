@@ -69,14 +69,15 @@ fn main() {
 }
 
 #[cfg(feature = "http_server")]
+/// Sorry, this part of the code is ugly. If you want me to clean it and document it, ask me -- Arkitu
 #[tokio::main]
 async fn main() {
-    use std::{collections::HashMap, net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4}, sync::Arc, time::Duration};
+    use std::{sync::Arc, time::Duration};
     use dashmap::DashMap;
-    use futures_util::{future::{select, Either}, SinkExt, StreamExt};
+    use futures_util::{SinkExt, StreamExt};
     use http::default::ServerMsg;
     use serde_json::Value;
-    use tokio::{io::{AsyncReadExt, AsyncWriteExt}, join, net::{TcpListener, TcpSocket, TcpStream}, sync::{mpsc, oneshot, watch, Mutex}, time::{sleep, Instant}};
+    use tokio::{net::TcpListener, sync::mpsc, time::sleep};
     use tokio_tungstenite::tungstenite::Message;
     use tracing::{error, info, warn};
     use crate::zeromq::{prelude::*, util::PeerIdentity};
@@ -84,69 +85,10 @@ async fn main() {
     use crate::game_state::GameState;
     use crate::control::CtrlRes;
 
-    // #[derive(Clone)]
-    // struct Session {
-    //     id: String,
-    //     ws: SocketAddr,
-    //     // Receives game state json
-    //     state_rcv: watch::Receiver<String>,
-    //     ctrl_port: u16,
-    // }
-
-    // struct Sessions {
-    //     inner: Vec<Session>,
-    //     lobby: Session,
-    //     available_ports: Vec<u16>
-    // }
-    // impl Sessions {
-    //     // Return error if there are not enough ports available
-    //     fn insert(&mut self, id: String, ws: SocketAddr) -> Result<(u16, watch::Sender<String>), ()> {
-    //         let ctrl_port = self.available_ports.pop().ok_or(())?;
-    //         let (tx, state_rcv) = watch::channel(serde_json::to_string(&GameState::default()).unwrap());
-    //         self.inner.push(Session {
-    //             id,
-    //             ws,
-    //             state_rcv,
-    //             ctrl_port
-    //         });
-    //         Ok((ctrl_port, tx))
-    //     }
-    //     // fn find_with_addr(&self, addr: &SocketAddr) -> Option<&Session> {
-    //     //     self.inner.iter().find(|s| {
-    //     //         &s.ws == addr || s.ctrls.contains(addr) || s.states.contains(addr)
-    //     //     })
-    //     // }
-    //     // fn find_with_ip(&self, ip: &IpAddr) -> Option<&Session> {
-    //     //     self.inner.iter().find(|s| {
-    //     //         &s.ws.ip() == ip || s.ctrls.iter().any(|a| &a.ip() == ip) || s.states.iter().any(|a| &a.ip() == ip)
-    //     //     })
-    //     // }
-    //     fn find_with_id(&self, id: &str) -> Option<&Session> {
-    //         self.inner.iter().find(|s| {
-    //             &s.id == id
-    //         })
-    //     }
-    //     /// Session with id="" that serves as a lobby for the sockets that are not yet matched with their session
-    //     const fn lobby(&self) -> &Session {
-    //         &self.lobby
-    //     }
-    // }
-
     // Host the page and wasm file
     tokio::spawn(wasm_server_runner::main(
         "./target/wasm32-unknown-unknown/debug/rsk-simulation.wasm".to_string(),
     ));
-
-    // let sessions: Arc<Mutex<Sessions>> = Arc::new(Mutex::new(Sessions {
-    //     inner: Vec::new(),
-    //     lobby: Session {
-    //         id: "".to_string(),
-    //         ws: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0),
-    //         state_rcv: rx,
-    //         ctrl_port: 10200
-    //     },
-    //     available_ports: (10202..10500).collect() // Arbitrary
-    // }));
 
     // session_id --> (sender, receiver)
     let ctrl_sessions = Arc::new(DashMap::<
@@ -219,9 +161,9 @@ async fn main() {
     // Lobby
     let state = state_socket.clone();
     tokio::spawn(async move {
-        let DEFAULT_GAME_STATE_JSON = serde_json::to_string(&GameState::default()).unwrap();
+        let json = serde_json::to_string(&GameState::default()).unwrap();
         loop {
-            state.send(("".to_string(), DEFAULT_GAME_STATE_JSON.as_bytes().to_vec())).unwrap();
+            state.send(("".to_string(), json.as_bytes().to_vec())).unwrap();
             sleep(Duration::from_millis(500)).await;
         }
     });
