@@ -32,7 +32,7 @@ pub(crate) struct PubSocketBackend {
     /// ctrl --> state
     pub pairs: Arc<DashMap<PeerIdentity, PeerIdentity>>,
     /// state --> sesstion's id
-    pub session_subscribers: Arc<DashMap<String, Vec<PeerIdentity>>>,
+    pub subscribers_session: Arc<DashMap<PeerIdentity, String>>,
     pub subscribers: DashMap<PeerIdentity, Subscriber>,
     socket_monitor: Mutex<Option<mpsc::Sender<SocketEvent>>>,
     socket_options: SocketOptions,
@@ -121,7 +121,7 @@ impl MultiPeerBackend for PubSocketBackend {
             }
         };
         self.pairs.insert(ctrl_id, peer_id.clone());
-        self.session_subscribers.get_mut("").unwrap().push(peer_id.clone());
+        self.subscribers_session.insert(peer_id.clone(), "".to_string());
 
         let (mut recv_queue, send_queue) = io.into_parts();
         // TODO provide handling for recv_queue
@@ -183,13 +183,8 @@ impl Drop for PubSocket {
 impl PubSocket {
     pub async fn send_for_id(&mut self, message: ZmqMessage, id: &str) -> ZmqResult<()> {
         let mut dead_peers = Vec::new();
-        let subscribers = self.backend.session_subscribers.get(id).unwrap();
-        let subscribers = subscribers.pair().1;
-        if subscribers.len() > 0 {
-            dbg!(id, &subscribers);
-        }
         for mut subscriber in self.backend.subscribers.iter_mut() {
-            if subscribers.contains(subscriber.pair().0) {
+            if self.backend.subscribers_session.get(subscriber.key()).unwrap().as_str() == id {
                 let res = subscriber
                     .send_queue
                     .as_mut()
@@ -271,13 +266,11 @@ impl CaptureSocket for PubSocket {}
 #[async_trait]
 impl Socket for PubSocket {
     fn with_options(options: SocketOptions) -> Self {
-        let session_subscribers = Arc::new(DashMap::new());
-        session_subscribers.insert("".to_string(), Vec::new());
         Self {
             backend: Arc::new(PubSocketBackend {
                 orphan_sub: Arc::new(tokio::sync::Mutex::new(None)),
                 pairs: Arc::new(DashMap::new()),
-                session_subscribers,
+                subscribers_session: Arc::new(DashMap::new()),
                 subscribers: DashMap::new(),
                 socket_monitor: Mutex::new(None),
                 socket_options: options,

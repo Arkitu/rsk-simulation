@@ -163,7 +163,7 @@ async fn main() {
     let ctrls = ctrl_sessions.clone();
     let orphan_sub = state_socket.backend.orphan_sub.clone();
     let pairs: Arc<DashMap<zeromq::util::PeerIdentity, zeromq::util::PeerIdentity>> = state_socket.backend.pairs.clone();
-    let session_subscribers = state_socket.backend.session_subscribers.clone();
+    let subscribers_session = state_socket.backend.subscribers_session.clone();
     tokio::spawn(async move {
         // Pairs represented by their ctrl peer id
         let mut matched_pairs: Vec<PeerIdentity> = Vec::new();
@@ -193,13 +193,8 @@ async fn main() {
                     let ctrl_id = socket.current_request.clone().unwrap();
                     dbg!(&ctrl_id);
                     if !matched_pairs.contains(&ctrl_id) {
-                        // Remove state from lobby
-                        let mut lobby = session_subscribers.get_mut("").unwrap();
-                        let index = lobby.iter().position(|id| id == &ctrl_id).unwrap();
-                        lobby.remove(index);
-
-                        // Add it to the subscription list of the session
-                        session_subscribers.get_mut(&key).unwrap().push(pairs.get(&ctrl_id).unwrap().clone());
+                        // Set the session for subscriber
+                        subscribers_session.insert(pairs.get(&ctrl_id).unwrap().clone(), key);
                         matched_pairs.push(ctrl_id);
                     }
                     let (_, (sender, receiver)) = ctrl.pair_mut();
@@ -212,8 +207,6 @@ async fn main() {
             socket.send(res.into()).await.unwrap();
         }
     });
-
-    let session_subscribers = state_socket.backend.session_subscribers.clone();
 
     let mut socket = state_socket;
     let (state_socket, mut rcv) = mpsc::unbounded_channel::<(String, Vec<u8>)>();
@@ -428,7 +421,6 @@ async fn main() {
     while let Ok((stream, addr)) = ws.accept().await {
         // let ctrl_socket = tmq::reply(&context);
         let state_socket = state_socket.clone();
-        let session_subscribers = session_subscribers.clone();
         let ctrl_sessions = ctrl_sessions.clone();
         tokio::spawn(async move {
             info!(target:"ws", "New incoming connection : {}", addr);
@@ -454,7 +446,6 @@ async fn main() {
                 snd,
                 rcv
             ));
-            session_subscribers.insert(session_id.clone(), Vec::new());
 
             let (res_sender, mut res_receiver) = mpsc::unbounded_channel();
 
@@ -467,7 +458,6 @@ async fn main() {
                                 ClientMsg::InitialMsg(_) => {
                                     error!(target: "ws", "Received an second InitialMsg");
                                     ctrl_sessions.remove(&s_id);
-                                    session_subscribers.remove(&s_id);
                                     return
                                 }
                                 ClientMsg::GameState(gs) => {
@@ -482,14 +472,12 @@ async fn main() {
                         Message::Close(_) => {
                             info!(target: "ws", "socket closed");
                             ctrl_sessions.remove(&s_id);
-                            session_subscribers.remove(&s_id);
                             return
                             // return Err(TError::ConnectionClosed)
                         },
                         _ => {
                             error!(target: "ws", "Expected bytes");
                             ctrl_sessions.remove(&s_id);
-                            session_subscribers.remove(&s_id);
                             return
                         }
                     }
@@ -507,7 +495,7 @@ async fn main() {
                             break
                         }
                     };
-                    if let Err(e) = ws_write.send(Message::Binary(bitcode::serialize(&ServerMsg::Ctrl(session_id.clone(), team, number, cmd)).unwrap())).await {
+                    if let Err(e) = ws_write.send(Message::Text(serde_json::to_string(&ServerMsg::Ctrl(session_id.clone(), team, number, cmd)).unwrap())).await {
                         error!(target: "ws", "Error when sending msg : {}", e);
                         break
                     };
@@ -545,7 +533,7 @@ fn main() {
         session_id = &session_id[1..];
     }
 
-    let mut gc = game_controller::GC::new("".to_string(), "".to_string(), "".to_string(), "".to_string(), false, session_id);
+    let mut gc = game_controller::GC::new("".to_string(), "".to_string(), session_id.to_string(), session_id.to_string(), false, session_id);
 
     #[cfg(feature = "gui")]
     {

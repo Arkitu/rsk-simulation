@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use serde_json::Value;
-use tracing::info;
+use tracing::{info, error};
 use wasm_sockets::{ConnectionStatus, EventClient, Message};
 
 use crate::game_state::{GameState, Robot, RobotTask};
@@ -28,10 +28,13 @@ impl Control {
 
         socket.set_on_message(Some(Box::new(move |socket, msg| {
             let req = match msg {
-                Message::Binary(bits) => bits,
-                Message::Text(string) => string.into_bytes()
+                Message::Text(string) => string,
+                Message::Binary(_) => {
+                    error!("Received binary message from ws");
+                    return
+                },
             };
-            let msg: ServerMsg = bitcode::deserialize(&req).unwrap();
+            let msg: ServerMsg = serde_json::from_str(&req).unwrap();
             let mut res = CtrlRes::UnknownError;
             match msg {
                 ServerMsg::Ctrl(key, team, number, cmd) => match team.as_str() {
