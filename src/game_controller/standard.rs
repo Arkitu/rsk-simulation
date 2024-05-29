@@ -106,9 +106,19 @@ impl GC {
                 let angle = y.atan2(x) + body.rotation().angle();
                 let x = angle.cos();
                 let y = angle.sin();
+
+                let linvel = vector![x, y] * speed;
+                let angvel = (r as f64).min(ROBOT_ANGULAR_SPEED).max(-ROBOT_ANGULAR_SPEED);
                 
-                body.set_linvel(dbg!(vector![x, y] * speed), true);
-                body.set_angvel((r as f64).min(ROBOT_ANGULAR_SPEED).max(-ROBOT_ANGULAR_SPEED), true);
+                body.set_linvel(linvel, true);
+                body.set_angvel(angvel, true);
+
+                if tasks[robot as usize].kick.is_none() {
+                    let handle = self.simu.kickers[robot as usize];
+                    let kicker = &mut self.simu.bodies[handle];
+                    kicker.set_linvel(linvel, true);
+                    kicker.set_angvel(angvel, true);
+                }
             }
             if let Some(f) = tasks[robot as usize].kick {
                 info!("{:?} : {}", robot, f);
