@@ -2,6 +2,10 @@ use crate::{constants::simu::*, game_state::Robot};
 use nalgebra::Isometry2;
 use rapier2d_f64::prelude::*;
 
+const BALL_COLLISION_GROUP: Group = Group::GROUP_1;
+const ROBOT_COLLISION_GROUP: Group = Group::GROUP_2;
+const KICKER_COLLISION_GROUP: Group = Group::GROUP_3;
+
 pub struct Simulation {
     pub bodies: RigidBodySet,
     pub colliders: ColliderSet,
@@ -48,7 +52,8 @@ impl Simulation {
         colliders.insert_with_parent(
             ColliderBuilder::ball(BALL_RADIUS)
                 .restitution(BALL_RESTITUTION)
-                .mass(BALL_MASS),
+                .mass(BALL_MASS)
+                .collision_groups(InteractionGroups::new(BALL_COLLISION_GROUP, Group::all())),
             ball,
             &mut bodies,
         );
@@ -75,7 +80,8 @@ impl Simulation {
                     point![-r * 0.866, r * 0.5],
                 ], 0.001).unwrap()
                     .mass(ROBOT_MASS)
-                    .restitution(ROBOT_RESTITUTION),
+                    .restitution(ROBOT_RESTITUTION)
+                    .collision_groups(InteractionGroups::new(ROBOT_COLLISION_GROUP, Group::all())),
                 *robot,
                 &mut bodies,
             );
@@ -89,7 +95,8 @@ impl Simulation {
         ));
         let mut kicker_joints = kickers.iter().zip(robots.iter()).map(|(kicker, robot)| {
             colliders.insert_with_parent(
-                ColliderBuilder::cuboid(KICKER_THICKNESS, ROBOT_RADIUS),
+                ColliderBuilder::cuboid(KICKER_THICKNESS, ROBOT_RADIUS)
+                    .collision_groups(InteractionGroups::new(KICKER_COLLISION_GROUP, BALL_COLLISION_GROUP)),
                 *kicker,
                 &mut bodies
             );
