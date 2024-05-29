@@ -46,7 +46,7 @@ pub struct GC {
     // [blue, green]
     teams: [GCTeam; 2],
     #[cfg(not(target_arch = "wasm32"))]
-    tasks: Arc<Mutex<[Option<RobotTask>; 4]>>,
+    tasks: Arc<Mutex<[RobotTasks; 4]>>,
     #[cfg(target_arch = "wasm32")]
     tasks: Rc<RefCell<[RobotTasks; 4]>>,
     blue_team_positive: bool,
@@ -62,7 +62,7 @@ impl GC {
     ) -> Self {
         let simu = Simulation::new();
         #[cfg(not(target_arch = "wasm32"))]
-        let tasks = Arc::new(Mutex::new(std::array::from_fn(|_| None)));
+        let tasks = Arc::new(Mutex::new(std::array::from_fn(|_| RobotTasks::default())));
         #[cfg(target_arch = "wasm32")]
         let tasks = Rc::new(RefCell::new(std::array::from_fn(|_| RobotTasks::default())));
         Self {
