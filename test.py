@@ -18,7 +18,7 @@ from math import pi
 #     # json = sub.recv_json()
 #     # print(json)
 
-with rsk.Client(key="") as client:
+with rsk.Client(key="ipOfS") as client:
     def update(client, dt):
         client.blue1.goto((0., 0., pi), wait=False)
         client.blue2.goto((0., 0., pi), wait=False)
