@@ -239,17 +239,7 @@ pub struct RobotTasks {
     /// (reason, start)
     pub penalty: Option<(&'static str, usize)>,
     /// (x, y, rotation)
-    pub control: Option<(f32, f32, f32)>,
+    pub control: (f32, f32, f32),
     /// strength
     pub kick: Option<f32>
-}
-impl RobotTasks {
-    pub fn preemption_reason(&self, robot: Robot) -> Option<&'static str> {
-        self.penalty.map(|(_, _)| match robot {
-            Robot::Blue1 => "penalty-blue1",
-            Robot::Blue2 => "penalty-blue2",
-            Robot::Green1 => "penalty-green1",
-            Robot::Green2 => "penalty-green2"
-        })
-    }
 }
