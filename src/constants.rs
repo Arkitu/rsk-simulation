@@ -1,6 +1,6 @@
 /// Distances in meters, mass in killograms, origin at the center of field
 
-pub const DT: f64 = 1.0 / 100.0;
+pub const DT: f64 = 1.0 / 1000.0;
 pub const FRAME_DURATION: usize = (DT * 1000.) as usize; // in ms
 pub const PENALTY_DURATION: usize = 5000 / FRAME_DURATION; // in frames
 
@@ -38,7 +38,7 @@ pub mod simu {
 
     pub const DEFAULT_BALL_POS: Point2<f64> = Point2::new(0., 0.);
     pub const BALL_RADIUS: f64 = real::BALL_RADIUS * MULTIPLIER;
-    pub const BALL_MASS: f64 = real::BALL_MASS * MULTIPLIER*MULTIPLIER*MULTIPLIER;
+    pub const BALL_MASS: f64 = real::BALL_MASS * MULTIPLIER * MULTIPLIER * MULTIPLIER;
 
     pub const ROBOT_RADIUS: f64 = real::ROBOT_RADIUS * MULTIPLIER;
     pub const KICKER_THICKNESS: f64 = real::KICKER_THICKNESS * MULTIPLIER;
@@ -46,6 +46,8 @@ pub mod simu {
     pub const ROBOT_SPEED: f64 = real::ROBOT_SPEED * MULTIPLIER;
     pub const ROBOT_ANGULAR_SPEED: f64 = real::ROBOT_ANGULAR_SPEED * MULTIPLIER;
     pub const KICKER_REACH: f64 = real::KICKER_REACH * MULTIPLIER;
+    pub const KICKER_STRENGTH: f64 = real::KICKER_STRENGTH * MULTIPLIER;
+    pub const KICKER_BACK_STRENGTH: f64 = real::KICKER_BACK_STRENGTH * MULTIPLIER;
 }
 
 /// Real constants, without multiplier
@@ -95,4 +97,6 @@ pub mod real {
 
     pub const KICKER_THICKNESS: f64 = 0.01; // Arbitrary. TODO: Mesure it
     pub const KICKER_REACH: f64 = 0.03; // Arbitrary. TODO: Mesure it
+    pub const KICKER_STRENGTH: f64 = 30000.; // Arbitrary. I don't know what unit it is. TODO: Mesure it
+    pub const KICKER_BACK_STRENGTH: f64 = 10.; // Arbitrary
 }

@@ -124,11 +124,6 @@ impl GC {
                 info!("{:?} : {}", robot, f);
                 self.simu.kick(robot, f as f64);
                 tasks[robot as usize].kick = None;
-            } else {
-                let handle = self.simu.kickers[robot as usize];
-                let kicker = &mut self.simu.bodies[handle];
-                kicker.set_linvel(linvel, true);
-                kicker.set_angvel(angvel, true);
             }
         }
         drop(tasks);

@@ -62,11 +62,11 @@ impl Control {
                                         4 => match &cmd[0] {
                                             Value::String(c) => match c.as_str() {
                                                 "control" => {
-                                                    tasks[r as usize].control = Some((
+                                                    tasks[r as usize].control = (
                                                         cmd[1].as_f64().unwrap_or(0.) as f32,
                                                         cmd[2].as_f64().unwrap_or(0.) as f32,
                                                         cmd[3].as_f64().unwrap_or(0.) as f32
-                                                    ));
+                                                    );
                                                     res = CtrlRes::Ok;
                                                 }
                                                 _ => res = CtrlRes::UnknownCommand

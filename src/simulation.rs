@@ -19,6 +19,7 @@ pub struct Simulation {
     pub robots: [RigidBodyHandle; 4],
     pub kickers: [RigidBodyHandle; 4],
     pub kicker_joints: [ImpulseJointHandle; 4],
+    pub kicker_timer: [u8; 4],
     gravity: Vector<f64>,
     integration_parameters: IntegrationParameters,
     physics_pipeline: PhysicsPipeline,
@@ -96,6 +97,7 @@ impl Simulation {
         let kickers = std::array::from_fn(|i| bodies.insert(
             RigidBodyBuilder::dynamic()
                 .position(Isometry::new(Vector::new(DEFAULT_ROBOTS_POS[i].x + (if i < 2 {1.} else {-1.} * ((ROBOT_RADIUS*0.866) + (KICKER_THICKNESS/2.))), DEFAULT_ROBOTS_POS[i].y), DEFAULT_ROBOTS_ANGLE[i]))
+                .ccd_enabled(true)
                 .can_sleep(false)
         ));
         let mut kicker_joints = kickers.iter().zip(robots.iter()).zip(ROBOT_COLLISION_GROUPS.iter()).map(|((kicker, robot), collision_group)| {
@@ -112,7 +114,7 @@ impl Simulation {
                     .local_anchor1(Point::new(ROBOT_RADIUS*0.866, 0.))
                     .local_anchor2(Point::new(0., 0.))
                     .limits([0.0, KICKER_REACH])
-                    .motor_position(0., 1000., 0.),
+                    .motor_position(0., KICKER_BACK_STRENGTH, 0.),
                 true
             )
         });
@@ -131,6 +133,7 @@ impl Simulation {
             robots,
             kickers,
             kicker_joints,
+            kicker_timer: [0; 4],
             gravity: vector![0.0, 0.0],
             integration_parameters: IntegrationParameters {
                 dt: DT,
@@ -166,13 +169,17 @@ impl Simulation {
             &self.events,
         );
         self.t += 1;
-        for kj in self.kicker_joints {
-            self.impulse_joints.get_mut(kj)
-                .unwrap()
-                .data
-                .as_prismatic_mut()
-                .unwrap()
-                .set_motor_position(0., 1000., 0.);
+        for (t, kj) in self.kicker_timer.iter_mut().zip(self.kicker_joints.iter()) {
+            if *t == 0 {
+                self.impulse_joints.get_mut(*kj)
+                    .unwrap()
+                    .data
+                    .as_prismatic_mut()
+                    .unwrap()
+                    .set_motor_position(0., KICKER_BACK_STRENGTH, 0.);
+            } else {
+                *t -= 1;
+            }
         }
     }
     pub fn find_entity_at(&self, pos: Point<f64>) -> Option<RigidBodyHandle> {
@@ -213,7 +220,8 @@ impl Simulation {
             .data
             .as_prismatic_mut()
             .unwrap()
-            .set_motor_position(f*10., 1000., 0.); // TODO: Adjust f*10. with constants
+            .set_motor_position(10., KICKER_STRENGTH*f, 0.);
+        self.kicker_timer[id as usize] = 1;
     }
     pub fn reset(&mut self) {
         for (_, b) in self.bodies.iter_mut() {
