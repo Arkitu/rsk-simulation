@@ -28,6 +28,9 @@ struct BevyGC(GC);
 #[derive(Component)]
 struct Ball;
 
+#[derive(Component)]
+struct Kicker;
+
 fn setup(
     mut cmds: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -83,7 +86,7 @@ fn setup(
             Robot::Blue1 | Robot::Blue2 => blue.clone(),
             Robot::Green1 | Robot::Green2 => green.clone(),
         };
-        let robot = cmds.spawn((
+        cmds.spawn((
             MaterialMesh2dBundle {
                 mesh: hexagon.clone(),
                 material,
@@ -92,12 +95,12 @@ fn setup(
             },
             r
         )).with_children(|parent| {
-            parent.spawn(MaterialMesh2dBundle {
+            parent.spawn((MaterialMesh2dBundle {
                 mesh: rect.clone(),
                 material: grey.clone(),
                 transform: Transform::from_xyz(ROBOT_RADIUS as f32 * 0.866, 0., 0.1),
                 ..default()
-            });
+            }, Kicker));
         });
     }
 }
@@ -112,16 +115,19 @@ fn update_gs(
 
 fn move_objects(
     mut ball: Query<&mut Transform, With<Ball>>,
-    mut robots: Query<(&Robot, &mut Transform), Without<Ball>>,
-    gs: Res<BevyGameState>,
+    mut robots: Query<(&Robot, &mut Transform, &Children), Without<Ball>>,
+    mut kickers: Query<&mut Transform, (With<Kicker>, Without<Ball>, Without<Robot>)>,
+    // gs: Res<BevyGameState>,
+    gc: NonSendMut<BevyGC>,
 ) {
-    let gs = &gs.0;
+    // let gs = &gs.0;
+    let gs = gc.0.get_game_state();
 
     if let Some(ball_pos) = gs.ball {
         *ball.single_mut() = Transform::from_xyz(ball_pos.x as f32, ball_pos.y as f32, 1.);
     }
 
-    for (r, mut pos) in robots.iter_mut() {
+    for (r, mut pos, childs) in robots.iter_mut() {
         let new_pos = match r {
             Robot::Blue1 => &gs.markers.blue1,
             Robot::Blue2 => &gs.markers.blue2,
@@ -129,6 +135,14 @@ fn move_objects(
             Robot::Green2 => &gs.markers.green2,
         };
         *pos = Transform::from_xyz(new_pos.position.x as f32, new_pos.position.y as f32, 1.).looking_to(Vec3::ZERO, Vec3::new((new_pos.orientation + (PI/2.)).cos() as f32, (new_pos.orientation + (PI/2.)).sin() as f32, 0.));
+    
+        let mut kicker_pos = kickers.get_mut(childs[0]).unwrap();
+
+        let pose = gc.0.get_kicker_pose(*r);
+        let d = ((pose.position.x - new_pos.position.x).powi(2) + (pose.position.y - new_pos.position.y).powi(2)).sqrt();
+
+
+        *kicker_pos = Transform::from_xyz(d as f32, 0., 1.);
     }
 }
 
@@ -150,12 +164,12 @@ fn select_dragging(
         if let Some(position) = q_windows.single().cursor_position() {
             #[cfg(not(feature = "async"))]
             {
-                let entity = gc.0.find_entity_at(cursor_to_simu(position));
+                let entity = gc.0.find_entity_at(bevy_to_simu(position));
                 *dragging = Dragging(Some(entity.unwrap_or(gc.0.get_ball_handle())))
             }
             #[cfg(feature = "async")]
             {
-                gc.0.find_entity_at_rc(cursor_to_simu(position), dragging.0.clone(), Some(gc.0.get_ball_handle()));
+                gc.0.find_entity_at_rc(bevy_to_simu(position), dragging.0.clone(), Some(gc.0.get_ball_handle()));
             }
         }
     } else if !buttons.pressed(MouseButton::Left) { // better in async because find_entity_at_rc can update dragging after mouse release
@@ -183,7 +197,7 @@ fn update_dragging(
         None => (),
         Some(d) => {
             if let Some(position) = q_windows.single().cursor_position() {
-                gc.0.teleport_entity(d, cursor_to_simu(position), None);
+                gc.0.teleport_entity(d, bevy_to_simu(position), None);
             }
         }
     }
@@ -197,9 +211,23 @@ fn reset(
         gc.0.reset();
     }
 }
+fn kick(
+    mut gc: NonSendMut<BevyGC>,
+    keys: Res<ButtonInput<KeyCode>>
+) {
+    if keys.just_pressed(KeyCode::KeyK) {
+        for r in Robot::all() {
+            gc.0.kick(r, 1.);
+        }
+    }
+}
 
-fn cursor_to_simu(pos: Vec2) -> Point<f64> {
+fn bevy_to_simu(pos: Vec2) -> Point<f64> {
     Point::new((pos.x / WINDOW_SCALE) as f64 - (CARPET.0/2.), -((pos.y / WINDOW_SCALE) as f64 - (CARPET.1/2.)))
+}
+
+fn simu_to_bevy(pos: Point<f64>) -> Vec2 {
+    Vec2::new((pos.x + (CARPET.0/2.)) as f32 * WINDOW_SCALE, (pos.y + (CARPET.1/2.)) as f32 * WINDOW_SCALE)
 }
 
 pub struct BevyGUI;
@@ -228,6 +256,7 @@ impl GUITrait for BevyGUI {
             .add_systems(Update, select_dragging)
             .add_systems(Update, update_dragging)
             .add_systems(Update, reset)
+            .add_systems(Update, kick)
             // BevyGC and Dragging are NonSend with http_client_gc to it's simpler if they always are
             .insert_non_send_resource(BevyGC(gc))
             .insert_non_send_resource(Dragging::default());

@@ -2,12 +2,23 @@ use crate::{constants::simu::*, game_state::Robot};
 use nalgebra::Isometry2;
 use rapier2d_f64::prelude::*;
 
+const BALL_COLLISION_GROUP: Group = Group::GROUP_1;
+const ROBOT_COLLISION_GROUPS: [Group; 4] = [
+    Group::GROUP_2,
+    Group::GROUP_3,
+    Group::GROUP_4,
+    Group::GROUP_5
+];
+const KICKER_COLLISION_GROUP: Group = Group::GROUP_6;
+
 pub struct Simulation {
     pub bodies: RigidBodySet,
     pub colliders: ColliderSet,
     pub goals: [ColliderHandle; 2],
     pub ball: RigidBodyHandle,
     pub robots: [RigidBodyHandle; 4],
+    pub kickers: [RigidBodyHandle; 4],
+    pub kicker_joints: [ImpulseJointHandle; 4],
     gravity: Vector<f64>,
     integration_parameters: IntegrationParameters,
     physics_pipeline: PhysicsPipeline,
@@ -27,6 +38,7 @@ impl Simulation {
     pub fn new() -> Self {
         let mut bodies = RigidBodySet::new();
         let mut colliders = ColliderSet::new();
+        let mut impulse_joints = ImpulseJointSet::new();
 
         // Create the goals
         let goals = [
@@ -45,7 +57,8 @@ impl Simulation {
         colliders.insert_with_parent(
             ColliderBuilder::ball(BALL_RADIUS)
                 .restitution(BALL_RESTITUTION)
-                .mass(BALL_MASS),
+                .mass(BALL_MASS)
+                .collision_groups(InteractionGroups::new(BALL_COLLISION_GROUP, Group::all())),
             ball,
             &mut bodies,
         );
@@ -59,7 +72,7 @@ impl Simulation {
                 .angular_damping(ROBOT_ANGULAR_DAMPING)
                 .can_sleep(false)
         ));
-        for robot in robots.iter() {
+        for (robot, collision_group) in robots.iter().zip(ROBOT_COLLISION_GROUPS.iter()) {
             const r: f64 = ROBOT_RADIUS - 0.001;
             colliders.insert_with_parent(
                 // Collider is a regular hexagon with radius ROBOT_RADIUS
@@ -72,11 +85,43 @@ impl Simulation {
                     point![-r * 0.866, r * 0.5],
                 ], 0.001).unwrap()
                     .mass(ROBOT_MASS)
-                    .restitution(ROBOT_RESTITUTION),
+                    .restitution(ROBOT_RESTITUTION)
+                    .collision_groups(InteractionGroups::new(*collision_group, Group::all())),
                 *robot,
                 &mut bodies,
             );
         }
+
+        // Create kickers
+        let kickers = std::array::from_fn(|i| bodies.insert(
+            RigidBodyBuilder::dynamic()
+                .position(Isometry::new(Vector::new(DEFAULT_ROBOTS_POS[i].x + (if i < 2 {1.} else {-1.} * ((ROBOT_RADIUS*0.866) + (KICKER_THICKNESS/2.))), DEFAULT_ROBOTS_POS[i].y), DEFAULT_ROBOTS_ANGLE[i]))
+                .can_sleep(false)
+        ));
+        let mut kicker_joints = kickers.iter().zip(robots.iter()).zip(ROBOT_COLLISION_GROUPS.iter()).map(|((kicker, robot), collision_group)| {
+            colliders.insert_with_parent(
+                ColliderBuilder::cuboid(KICKER_THICKNESS, ROBOT_RADIUS)
+                    .collision_groups(InteractionGroups::new(KICKER_COLLISION_GROUP, collision_group.complement())),
+                *kicker,
+                &mut bodies
+            );
+            impulse_joints.insert(
+                *robot,
+                *kicker,
+                PrismaticJointBuilder::new(UnitVector::new_normalize(Vector::x()))
+                    .local_anchor1(Point::new(ROBOT_RADIUS*0.866, 0.))
+                    .local_anchor2(Point::new(0., 0.))
+                    .limits([0.0, KICKER_REACH])
+                    .motor_position(0., 1000., 0.),
+                true
+            )
+        });
+        let kicker_joints = [
+            kicker_joints.next().unwrap(),
+            kicker_joints.next().unwrap(),
+            kicker_joints.next().unwrap(),
+            kicker_joints.next().unwrap()
+        ];
 
         Self {
             bodies,
@@ -84,6 +129,8 @@ impl Simulation {
             goals,
             ball,
             robots,
+            kickers,
+            kicker_joints,
             gravity: vector![0.0, 0.0],
             integration_parameters: IntegrationParameters {
                 dt: DT,
@@ -93,7 +140,7 @@ impl Simulation {
             islands: IslandManager::new(),
             broad_phase: DefaultBroadPhase::new(),
             narrow_phase: NarrowPhase::new(),
-            impulse_joints: ImpulseJointSet::new(),
+            impulse_joints,
             multibody_joints: MultibodyJointSet::new(),
             ccd_solver: CCDSolver::new(),
             query_pipeline: QueryPipeline::new(),
@@ -119,6 +166,14 @@ impl Simulation {
             &self.events,
         );
         self.t += 1;
+        for kj in self.kicker_joints {
+            self.impulse_joints.get_mut(kj)
+                .unwrap()
+                .data
+                .as_prismatic_mut()
+                .unwrap()
+                .set_motor_position(0., 1000., 0.);
+        }
     }
     pub fn find_entity_at(&self, pos: Point<f64>) -> Option<RigidBodyHandle> {
         let filter = QueryFilter::default();
@@ -151,6 +206,15 @@ impl Simulation {
     pub fn teleport_robot(&mut self, id: Robot, pos: Point<f64>, r: Option<f64>) {
         self.teleport_entity(self.get_robot_handle(id), pos, r);
     }
+    /// f between 0. and 1.
+    pub fn kick(&mut self, id: Robot, f: f64) {
+        self.impulse_joints.get_mut(self.kicker_joints[id as usize])
+            .unwrap()
+            .data
+            .as_prismatic_mut()
+            .unwrap()
+            .set_motor_position(f*10., 1000., 0.); // TODO: Adjust f*10. with constants
+    }
     pub fn reset(&mut self) {
         for (_, b) in self.bodies.iter_mut() {
             b.reset_forces(true);
@@ -161,6 +225,9 @@ impl Simulation {
         self.teleport_ball(DEFAULT_BALL_POS);
         for r in Robot::all() {
             self.teleport_robot(r, DEFAULT_ROBOTS_POS[r as usize], Some(DEFAULT_ROBOTS_ANGLE[r as usize]));
+        }
+        for i in 0..4 {
+            self.bodies[self.kickers[i]].set_position(Isometry::new(Vector::new(DEFAULT_ROBOTS_POS[i].x + (if i < 2 {1.} else {-1.} * ((ROBOT_RADIUS*0.866) + (KICKER_THICKNESS/2.))), DEFAULT_ROBOTS_POS[i].y), DEFAULT_ROBOTS_ANGLE[i]), true);
         }
     }
 }

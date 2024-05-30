@@ -1,4 +1,4 @@
-use std::f64::consts::PI;
+use std::{f64::consts::PI, ops::{Add, Sub}};
 
 // TODO remove that later
 use rapier2d_f64::prelude::*;
@@ -83,6 +83,24 @@ use crate::constants::real::*;
 pub struct Pose {
     pub position: Point<f64>,
     pub orientation: f64,
+}
+impl Add for &Pose {
+    type Output = Pose;
+    fn add(self, rhs: Self) -> Self::Output {
+        Pose {
+            position: Point::<f64>::new(self.position.x + rhs.position.x, self.position.y + rhs.position.y) ,
+            orientation: self.orientation + rhs.orientation
+        }
+    }
+}
+impl Sub for &Pose {
+    type Output = Pose;
+    fn sub(self, rhs: Self) -> Self::Output {
+        Pose {
+            position: Point::<f64>::new(self.position.x - rhs.position.x, self.position.y - rhs.position.y) ,
+            orientation: self.orientation - rhs.orientation
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -218,30 +236,22 @@ impl Robot {
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum RobotTask {
-    Penalty {
-        reason: &'static str,
-        // Frame number when the penalty started
-        start: usize
-    },
-    Control {
-        x: f32,
-        y: f32,
-        r: f32
-    }
-    // TODO
+#[derive(Default)]
+pub struct RobotTasks {
+    /// (reason, start)
+    pub penalty: Option<(&'static str, usize)>,
+    /// (x, y, rotation)
+    pub control: Option<(f32, f32, f32)>,
+    /// strength
+    pub kick: Option<f32>
 }
-impl RobotTask {
-    pub fn preemption_reason(&self, robot: Robot) -> Option<String> {
-        match self {
-            &RobotTask::Penalty { .. } => match robot {
-                Robot::Blue1 => Some("penalty-blue1".to_string()),
-                Robot::Blue2 => Some("penalty-blue2".to_string()),
-                Robot::Green1 => Some("penalty-green1".to_string()),
-                Robot::Green2 => Some("penalty-green2".to_string()),
-            },
-            &RobotTask::Control { .. } => None
-        }
+impl RobotTasks {
+    pub fn preemption_reason(&self, robot: Robot) -> Option<&'static str> {
+        self.penalty.map(|(_, _)| match robot {
+            Robot::Blue1 => "penalty-blue1",
+            Robot::Blue2 => "penalty-blue2",
+            Robot::Green1 => "penalty-green1",
+            Robot::Green2 => "penalty-green2"
+        })
     }
 }

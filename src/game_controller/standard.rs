@@ -5,19 +5,20 @@ use std::sync::{Arc, Mutex};
 use crate::constants::simu::*;
 use crate::game_state::{
     GameState, Markers, Pose, Referee, RefereeTeam, RefereeTeamRobot, RefereeTeamRobots,
-    RefereeTeams, Robot, RobotTask,
+    RefereeTeams, Robot, RobotTasks,
 };
 use crate::simulation::Simulation;
 use rapier2d_f64::prelude::*;
+use tracing::info;
 
 #[cfg(feature = "control")]
 use crate::control::Control;
 
 #[cfg(not(target_arch = "wasm32"))]
-type TasksType = Arc<Mutex<[Option<RobotTask>; 4]>>;
+type TasksType = Arc<Mutex<[RobotTasks; 4]>>;
 
 #[cfg(target_arch = "wasm32")]
-type TasksType = Rc<RefCell<[Option<RobotTask>; 4]>>;
+type TasksType = Rc<RefCell<[RobotTasks; 4]>>;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 enum GCState {
@@ -95,38 +96,41 @@ impl GC {
     }
     pub fn step(&mut self) {
         #[cfg(not(target_arch = "wasm32"))]
-        let tasks = self.tasks.lock().unwrap();
+        let mut tasks = self.tasks.lock().unwrap();
         #[cfg(target_arch = "wasm32")]
-        let tasks = self.tasks.borrow();
-        // dbg!(&tasks);
+        let mut tasks = self.tasks.borrow_mut();
         for robot in Robot::all() {
-            let handle = self.get_robot_handle(robot);
-            // self.simu.bodies[handle].set_linvel(vector![0., 0.], true);
-            match &tasks[robot as usize] {
-                Some(RobotTask::Control { x, y, r }) => {
-                    dbg!(robot);
-                    let x = *x as f64*MULTIPLIER;
-                    let y = *y as f64*MULTIPLIER;
-                    // dbg!(x, y, r);
-                    let handle = self.get_robot_handle(robot);
-                    let body = &mut self.simu.bodies[handle];
-                    let mut speed = vector![x, y].norm();
-                    if speed > ROBOT_SPEED {
-                        speed = ROBOT_SPEED;
-                    }
-                    let angle = y.atan2(x) + body.rotation().angle();
-                    dbg!(angle);
-                    dbg!(vector![x, y]);
-                    let x = angle.cos();
-                    let y = angle.sin();
-                    
-                    body.set_linvel(dbg!(vector![x, y] * speed), true);
-                    body.set_angvel((*r as f64).min(ROBOT_ANGULAR_SPEED).max(-ROBOT_ANGULAR_SPEED), true);
+            if let Some((x, y, r)) = tasks[robot as usize].control {
+                let x = x as f64*MULTIPLIER;
+                let y = y as f64*MULTIPLIER;
 
-                    // body.apply_impulse((vector![x, y] * speed) - body.linvel(), true);
-                    // body.apply_torque_impulse((*r as f64).min(ROBOT_ANGULAR_SPEED).max(-ROBOT_ANGULAR_SPEED), true);
-                },
-                _ => {}
+                let handle = self.get_robot_handle(robot);
+                let body = &mut self.simu.bodies[handle];
+                let mut speed = vector![x, y].norm();
+                if speed > ROBOT_SPEED {
+                    speed = ROBOT_SPEED;
+                }
+                let angle = y.atan2(x) + body.rotation().angle();
+                let x = angle.cos();
+                let y = angle.sin();
+
+                let linvel = vector![x, y] * speed;
+                let angvel = (r as f64).min(ROBOT_ANGULAR_SPEED).max(-ROBOT_ANGULAR_SPEED);
+                
+                body.set_linvel(linvel, true);
+                body.set_angvel(angvel, true);
+
+                // if tasks[robot as usize].kick.is_none() {
+                //     let handle = self.simu.kickers[robot as usize];
+                //     let kicker = &mut self.simu.bodies[handle];
+                //     kicker.set_linvel(linvel, true);
+                //     kicker.set_angvel(angvel, true);
+                // }
+            }
+            if let Some(f) = tasks[robot as usize].kick {
+                info!("{:?} : {}", robot, f);
+                self.simu.kick(robot, f as f64);
+                tasks[robot as usize].kick = None;
             }
         }
         drop(tasks);
@@ -181,15 +185,13 @@ impl GC {
                         x_positive: self.blue_team_positive,
                         score: self.teams[0].score,
                         robots: RefereeTeamRobots {
-                            one: if let Some(task) = &tasks[0] {
+                            one: if let Some((reason, start)) = &tasks[0].penalty {
                                 RefereeTeamRobot {
-                                    penalized: if let RobotTask::Penalty { .. } = task { true } else { false },
-                                    penalized_remaining: if let RobotTask::Penalty { start, .. } = task { Some(
-                                        (start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000
-                                    ) } else { None },
-                                    penalized_reason: if let RobotTask::Penalty { reason, .. } = task { Some(reason.to_string()) } else { None },
-                                    preempted: task.preemption_reason(Robot::Blue1).is_some(),
-                                    preemption_reasons: task.preemption_reason(Robot::Blue1).map(|r| vec![r]).unwrap_or(vec![])
+                                    penalized: true,
+                                    penalized_remaining: Some((start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000),
+                                    penalized_reason: Some(reason.to_string()),
+                                    preempted: true,
+                                    preemption_reasons: vec![reason.to_string()]
                                 }
                             } else {
                                 RefereeTeamRobot {
@@ -200,15 +202,13 @@ impl GC {
                                     preemption_reasons: vec![]
                                 }
                             },
-                            two: if let Some(task) = &tasks[1] {
+                            two: if let Some((reason, start)) = &tasks[1].penalty {
                                 RefereeTeamRobot {
-                                    penalized: if let RobotTask::Penalty { .. } = task { true } else { false },
-                                    penalized_remaining: if let RobotTask::Penalty { start, .. } = task { Some(
-                                        (start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000
-                                    ) } else { None },
-                                    penalized_reason: if let RobotTask::Penalty { reason, .. } = task { Some(reason.to_string()) } else { None },
-                                    preempted: task.preemption_reason(Robot::Blue2).is_some(),
-                                    preemption_reasons: task.preemption_reason(Robot::Blue2).map(|r| vec![r]).unwrap_or(vec![])
+                                    penalized: true,
+                                    penalized_remaining: Some((start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000),
+                                    penalized_reason: Some(reason.to_string()),
+                                    preempted: true,
+                                    preemption_reasons: vec![reason.to_string()]
                                 }
                             } else {
                                 RefereeTeamRobot {
@@ -226,15 +226,13 @@ impl GC {
                         x_positive: !self.blue_team_positive,
                         score: self.teams[1].score,
                         robots: RefereeTeamRobots {
-                            one: if let Some(task) = &tasks[2] {
+                            one: if let Some((reason, start)) = &tasks[2].penalty {
                                 RefereeTeamRobot {
-                                    penalized: if let RobotTask::Penalty { .. } = task { true } else { false },
-                                    penalized_remaining: if let RobotTask::Penalty { start, .. } = task { Some(
-                                        (start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000
-                                    ) } else { None },
-                                    penalized_reason: if let RobotTask::Penalty { reason, .. } = task { Some(reason.to_string()) } else { None },
-                                    preempted: task.preemption_reason(Robot::Green1).is_some(),
-                                    preemption_reasons: task.preemption_reason(Robot::Green1).map(|r| vec![r]).unwrap_or(vec![])
+                                    penalized: true,
+                                    penalized_remaining: Some((start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000),
+                                    penalized_reason: Some(reason.to_string()),
+                                    preempted: true,
+                                    preemption_reasons: vec![reason.to_string()]
                                 }
                             } else {
                                 RefereeTeamRobot {
@@ -245,15 +243,13 @@ impl GC {
                                     preemption_reasons: vec![]
                                 }
                             },
-                            two: if let Some(task) = &tasks[3] {
+                            two: if let Some((reason, start)) = &tasks[3].penalty {
                                 RefereeTeamRobot {
-                                    penalized: if let RobotTask::Penalty { .. } = task { true } else { false },
-                                    penalized_remaining: if let RobotTask::Penalty { start, .. } = task { Some(
-                                        (start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000
-                                    ) } else { None },
-                                    penalized_reason: if let RobotTask::Penalty { reason, .. } = task { Some(reason.to_string()) } else { None },
-                                    preempted: task.preemption_reason(Robot::Green2).is_some(),
-                                    preemption_reasons: task.preemption_reason(Robot::Green2).map(|r| vec![r]).unwrap_or(vec![])
+                                    penalized: true,
+                                    penalized_remaining: Some((start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000),
+                                    penalized_reason: Some(reason.to_string()),
+                                    preempted: true,
+                                    preemption_reasons: vec![reason.to_string()]
                                 }
                             } else {
                                 RefereeTeamRobot {
@@ -289,5 +285,15 @@ impl GC {
     }
     pub fn reset(&mut self) {
         self.simu.reset()
+    }
+    pub fn kick(&mut self, id: Robot, f: f64) {
+        self.simu.kick(id, f)
+    }
+    pub fn get_kicker_pose(&self, id: Robot) -> Pose {
+        let pos = self.simu.bodies[self.simu.kickers[id as usize]].position();
+        Pose {
+            position: Point::new(pos.translation.x/MULTIPLIER, pos.translation.y/MULTIPLIER),
+            orientation: pos.rotation.angle()
+        }
     }
 }
