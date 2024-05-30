@@ -52,8 +52,8 @@ impl Simulation {
                 .position(DEFAULT_BALL_POS.into())
                 .linear_damping(BALL_DAMPING)
                 .can_sleep(false)
-                .dominance_group(-1)
-            );
+                // .dominance_group(-1)
+        );
         colliders.insert_with_parent(
             ColliderBuilder::ball(BALL_RADIUS)
                 .restitution(BALL_RESTITUTION)

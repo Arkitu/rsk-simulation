@@ -100,37 +100,35 @@ impl GC {
         #[cfg(target_arch = "wasm32")]
         let mut tasks = self.tasks.borrow_mut();
         for robot in Robot::all() {
-            if let Some((x, y, r)) = tasks[robot as usize].control {
-                let x = x as f64*MULTIPLIER;
-                let y = y as f64*MULTIPLIER;
+            let (x, y, r) = tasks[robot as usize].control;
+            let x = x as f64*MULTIPLIER;
+            let y = y as f64*MULTIPLIER;
 
-                let handle = self.get_robot_handle(robot);
-                let body = &mut self.simu.bodies[handle];
-                let mut speed = vector![x, y].norm();
-                if speed > ROBOT_SPEED {
-                    speed = ROBOT_SPEED;
-                }
-                let angle = y.atan2(x) + body.rotation().angle();
-                let x = angle.cos();
-                let y = angle.sin();
-
-                let linvel = vector![x, y] * speed;
-                let angvel = (r as f64).min(ROBOT_ANGULAR_SPEED).max(-ROBOT_ANGULAR_SPEED);
-                
-                body.set_linvel(linvel, true);
-                body.set_angvel(angvel, true);
-
-                // if tasks[robot as usize].kick.is_none() {
-                //     let handle = self.simu.kickers[robot as usize];
-                //     let kicker = &mut self.simu.bodies[handle];
-                //     kicker.set_linvel(linvel, true);
-                //     kicker.set_angvel(angvel, true);
-                // }
+            let handle = self.get_robot_handle(robot);
+            let body = &mut self.simu.bodies[handle];
+            let mut speed = vector![x, y].norm();
+            if speed > ROBOT_SPEED {
+                speed = ROBOT_SPEED;
             }
+            let angle = y.atan2(x) + body.rotation().angle();
+            let x = angle.cos();
+            let y = angle.sin();
+
+            let linvel = vector![x, y] * speed;
+            let angvel = (r as f64).min(ROBOT_ANGULAR_SPEED).max(-ROBOT_ANGULAR_SPEED);
+            
+            body.set_linvel(linvel, true);
+            body.set_angvel(angvel, true);
+            
             if let Some(f) = tasks[robot as usize].kick {
                 info!("{:?} : {}", robot, f);
                 self.simu.kick(robot, f as f64);
                 tasks[robot as usize].kick = None;
+            } else {
+                let handle = self.simu.kickers[robot as usize];
+                let kicker = &mut self.simu.bodies[handle];
+                kicker.set_linvel(linvel, true);
+                kicker.set_angvel(angvel, true);
             }
         }
         drop(tasks);
