@@ -45,8 +45,7 @@ pub mod simu {
     pub const ROBOT_MASS: f64 = real::ROBOT_MASS * MULTIPLIER*MULTIPLIER*MULTIPLIER;
     pub const ROBOT_SPEED: f64 = real::ROBOT_SPEED * MULTIPLIER;
     pub const ROBOT_ANGULAR_SPEED: f64 = real::ROBOT_ANGULAR_SPEED * MULTIPLIER;
-
-    
+    pub const KICKER_REACH: f64 = real::KICKER_REACH * MULTIPLIER;
 }
 
 /// Real constants, without multiplier
@@ -87,11 +86,13 @@ pub mod real {
     pub const BALL_DAMPING: f64 = 1.;
 
     pub const ROBOT_RADIUS: f64 = 0.088; // From the python simulation. TODO: Mesure it
-    pub const KICKER_THICKNESS: f64 = 0.01; // Arbitrary. TODO: Mesure it
     pub const ROBOT_MASS: f64 = 1.; // Arbitrary. TODO: Mesure it
     pub const ROBOT_DAMPING: f64 = 0.; // Arbitrary. TODO: Mesure it
     pub const ROBOT_ANGULAR_DAMPING: f64 = 0.; // Arbitrary. TODO: Mesure it
     pub const ROBOT_RESTITUTION: f64 = 0.; // Arbitrary. TODO: Mesure it
     pub const ROBOT_SPEED: f64 = 0.035*PI*2.*150. / 60.; // Arbitrary. TODO: Mesure it
     pub const ROBOT_ANGULAR_SPEED: f64 = 0.1; // Arbitrary. TODO: Mesure it
+
+    pub const KICKER_THICKNESS: f64 = 0.01; // Arbitrary. TODO: Mesure it
+    pub const KICKER_REACH: f64 = 0.03; // Arbitrary. TODO: Mesure it
 }

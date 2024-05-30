@@ -9,15 +9,7 @@ const ROBOT_COLLISION_GROUPS: [Group; 4] = [
     Group::GROUP_4,
     Group::GROUP_5
 ];
-// const KICKER_
-const KICKER_COLLISION_GROUPS: [Group; 4] = [
-    Group::GROUP_6,
-    Group::GROUP_7,
-    Group::GROUP_8,
-    Group::GROUP_9
-];
-
-const MAX_MOTOR_POSITION: f64 = 10.;
+const KICKER_COLLISION_GROUP: Group = Group::GROUP_6;
 
 pub struct Simulation {
     pub bodies: RigidBodySet,
@@ -106,10 +98,10 @@ impl Simulation {
                 .position(Isometry::new(Vector::new(DEFAULT_ROBOTS_POS[i].x + (if i < 2 {1.} else {-1.} * ((ROBOT_RADIUS*0.866) + (KICKER_THICKNESS/2.))), DEFAULT_ROBOTS_POS[i].y), DEFAULT_ROBOTS_ANGLE[i]))
                 .can_sleep(false)
         ));
-        let mut kicker_joints = kickers.iter().zip(robots.iter()).map(|(kicker, robot)| {
+        let mut kicker_joints = kickers.iter().zip(robots.iter()).zip(ROBOT_COLLISION_GROUPS.iter()).map(|((kicker, robot), collision_group)| {
             colliders.insert_with_parent(
                 ColliderBuilder::cuboid(KICKER_THICKNESS, ROBOT_RADIUS)
-                    .collision_groups(InteractionGroups::new(KICKER_COLLISION_GROUP, BALL_COLLISION_GROUP)),
+                    .collision_groups(InteractionGroups::new(KICKER_COLLISION_GROUP, collision_group.complement())),
                 *kicker,
                 &mut bodies
             );
@@ -119,7 +111,7 @@ impl Simulation {
                 PrismaticJointBuilder::new(UnitVector::new_normalize(Vector::x()))
                     .local_anchor1(Point::new(ROBOT_RADIUS*0.866, 0.))
                     .local_anchor2(Point::new(0., 0.))
-                    .limits([0.0, ])
+                    .limits([0.0, KICKER_REACH])
                     .motor_position(0., 1000., 0.),
                 true
             )

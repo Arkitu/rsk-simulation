@@ -113,12 +113,12 @@ impl GC {
                 body.set_linvel(linvel, true);
                 body.set_angvel(angvel, true);
 
-                if tasks[robot as usize].kick.is_none() {
-                    let handle = self.simu.kickers[robot as usize];
-                    let kicker = &mut self.simu.bodies[handle];
-                    kicker.set_linvel(linvel, true);
-                    kicker.set_angvel(angvel, true);
-                }
+                // if tasks[robot as usize].kick.is_none() {
+                //     let handle = self.simu.kickers[robot as usize];
+                //     let kicker = &mut self.simu.bodies[handle];
+                //     kicker.set_linvel(linvel, true);
+                //     kicker.set_angvel(angvel, true);
+                // }
             }
             if let Some(f) = tasks[robot as usize].kick {
                 info!("{:?} : {}", robot, f);
