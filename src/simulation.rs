@@ -3,8 +3,21 @@ use nalgebra::Isometry2;
 use rapier2d_f64::prelude::*;
 
 const BALL_COLLISION_GROUP: Group = Group::GROUP_1;
-const ROBOT_COLLISION_GROUP: Group = Group::GROUP_2;
-const KICKER_COLLISION_GROUP: Group = Group::GROUP_3;
+const ROBOT_COLLISION_GROUPS: [Group; 4] = [
+    Group::GROUP_2,
+    Group::GROUP_3,
+    Group::GROUP_4,
+    Group::GROUP_5
+];
+// const KICKER_
+const KICKER_COLLISION_GROUPS: [Group; 4] = [
+    Group::GROUP_6,
+    Group::GROUP_7,
+    Group::GROUP_8,
+    Group::GROUP_9
+];
+
+const MAX_MOTOR_POSITION: f64 = 10.;
 
 pub struct Simulation {
     pub bodies: RigidBodySet,
@@ -67,7 +80,7 @@ impl Simulation {
                 .angular_damping(ROBOT_ANGULAR_DAMPING)
                 .can_sleep(false)
         ));
-        for robot in robots.iter() {
+        for (robot, collision_group) in robots.iter().zip(ROBOT_COLLISION_GROUPS.iter()) {
             const r: f64 = ROBOT_RADIUS - 0.001;
             colliders.insert_with_parent(
                 // Collider is a regular hexagon with radius ROBOT_RADIUS
@@ -81,7 +94,7 @@ impl Simulation {
                 ], 0.001).unwrap()
                     .mass(ROBOT_MASS)
                     .restitution(ROBOT_RESTITUTION)
-                    .collision_groups(InteractionGroups::new(ROBOT_COLLISION_GROUP, Group::all())),
+                    .collision_groups(InteractionGroups::new(*collision_group, Group::all())),
                 *robot,
                 &mut bodies,
             );
@@ -106,6 +119,7 @@ impl Simulation {
                 PrismaticJointBuilder::new(UnitVector::new_normalize(Vector::x()))
                     .local_anchor1(Point::new(ROBOT_RADIUS*0.866, 0.))
                     .local_anchor2(Point::new(0., 0.))
+                    .limits([0.0, ])
                     .motor_position(0., 1000., 0.),
                 true
             )
