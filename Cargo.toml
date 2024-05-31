@@ -113,7 +113,7 @@ default_http_client = ["http_client_control", "standard_gc", "bevy_gui"]
 
 default_native = ["standard_control", "standard_gc", "bevy_gui"]
 
-default = ["default_native"]
+default = ["default_http_client"]
 
 [dependencies]
 rapier2d-f64 = { version = "0.19", features = ["simd-stable"] }
@@ -191,6 +191,7 @@ wasm_thread = "0.3"
 console_error_panic_hook = "0.1"
 tracing-wasm = "0.2"
 web-sys = { version = "0.3", features = ["Location", "Window"] }
+wasm-timer = "0.2"
 
 [build-dependencies]
 cfg_aliases = "0.2"

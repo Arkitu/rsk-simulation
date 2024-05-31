@@ -1,4 +1,5 @@
 use crate::{constants::simu::*, game_state::Robot};
+use log::info;
 use nalgebra::Isometry2;
 use rapier2d_f64::prelude::*;
 

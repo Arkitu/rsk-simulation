@@ -1,8 +1,10 @@
+use std::time::Duration;
 use std::{cell::RefCell, rc::Rc};
 
 use serde_json::Value;
 use tracing::{info, error};
 use wasm_sockets::{ConnectionStatus, EventClient, Message};
+use wasm_timer::Instant;
 
 use crate::game_state::{GameState, Robot, RobotTasks};
 use crate::http::default::{ClientMsg, ServerMsg};
@@ -10,9 +12,11 @@ use crate::http::default::{ClientMsg, ServerMsg};
 use super::CtrlRes;
 
 const HOST: &'static str = "127.0.0.1:1234";
+const PUBLISH_RATE: Duration = Duration::from_millis(50);
 
 pub struct Control {
-    socket: EventClient
+    socket: EventClient,
+    last_publish: Instant
 }
 impl Control {
     pub fn new(keys: [String; 2], tasks: Rc<RefCell<[RobotTasks; 4]>>, session_id: &str) -> Self {
@@ -103,15 +107,19 @@ impl Control {
         })));
 
         Self {
-            socket
+            socket,
+            last_publish: Instant::now()
         }
     }
     /// Send new game state to client
-    pub fn publish(&self, gs: GameState) {
-        if let ConnectionStatus::Connected = self.socket.status.borrow().clone() {
-            self.socket.send_binary(
-                bitcode::serialize(&ClientMsg::GameState(gs)).unwrap()
-            ).unwrap();
+    pub fn publish(&mut self, gs: GameState) {
+        if self.last_publish.elapsed() > PUBLISH_RATE {
+            if let ConnectionStatus::Connected = self.socket.status.borrow().clone() {
+                self.socket.send_binary(
+                    bitcode::serialize(&ClientMsg::GameState(gs)).unwrap()
+                ).unwrap();
+            }
+            self.last_publish = Instant::now();
         }
     }
 }
