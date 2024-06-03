@@ -20,7 +20,7 @@ pub struct Simulation {
     pub robots: [RigidBodyHandle; 4],
     pub kickers: [RigidBodyHandle; 4],
     pub kicker_joints: [ImpulseJointHandle; 4],
-    pub kicker_timer: [u8; 4],
+    pub kicker_timer: [usize; 4],
     gravity: Vector<f64>,
     integration_parameters: IntegrationParameters,
     physics_pipeline: PhysicsPipeline,
@@ -59,6 +59,7 @@ impl Simulation {
         colliders.insert_with_parent(
             ColliderBuilder::ball(BALL_RADIUS)
                 .restitution(BALL_RESTITUTION)
+                .restitution_combine_rule(CoefficientCombineRule::Min)
                 .mass(BALL_MASS)
                 .collision_groups(InteractionGroups::new(BALL_COLLISION_GROUP, Group::all())),
             ball,
@@ -88,6 +89,7 @@ impl Simulation {
                 ], 0.001).unwrap()
                     .mass(ROBOT_MASS)
                     .restitution(ROBOT_RESTITUTION)
+                    .restitution_combine_rule(CoefficientCombineRule::Min)
                     .collision_groups(InteractionGroups::new(*collision_group, Group::all())),
                 *robot,
                 &mut bodies,
@@ -104,6 +106,8 @@ impl Simulation {
         let mut kicker_joints = kickers.iter().zip(robots.iter()).zip(ROBOT_COLLISION_GROUPS.iter()).map(|((kicker, robot), collision_group)| {
             colliders.insert_with_parent(
                 ColliderBuilder::cuboid(KICKER_THICKNESS, ROBOT_RADIUS)
+                    .restitution(ROBOT_RESTITUTION)
+                    .restitution_combine_rule(CoefficientCombineRule::Min)
                     .collision_groups(InteractionGroups::new(KICKER_COLLISION_GROUP, collision_group.complement())),
                 *kicker,
                 &mut bodies
@@ -170,8 +174,13 @@ impl Simulation {
             &self.events,
         );
         self.t += 1;
-        for (t, kj) in self.kicker_timer.iter_mut().zip(self.kicker_joints.iter()) {
+        for (((t, r), k), kj) in self.kicker_timer.iter_mut().zip(self.robots.iter()).zip(self.kickers.iter()).zip(self.kicker_joints.iter()) {
             if *t == 0 {
+                let mut pos = *self.bodies.get(*r).unwrap().position();
+                pos.append_translation_mut(&Translation::new(ROBOT_RADIUS*0.866*pos.rotation.angle().cos(), ROBOT_RADIUS*0.866*pos.rotation.angle().sin()));
+                self.bodies.get_mut(*k)
+                    .unwrap()
+                    .set_position(pos, true);
                 self.impulse_joints.get_mut(*kj)
                     .unwrap()
                     .data
@@ -222,7 +231,7 @@ impl Simulation {
             .as_prismatic_mut()
             .unwrap()
             .set_motor_position(10., KICKER_STRENGTH*f, 0.);
-        self.kicker_timer[id as usize] = 1;
+        self.kicker_timer[id as usize] = 1000;
     }
     pub fn reset(&mut self) {
         for (_, b) in self.bodies.iter_mut() {

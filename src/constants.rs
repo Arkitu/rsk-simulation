@@ -83,7 +83,7 @@ pub mod real {
 
     pub const DEFAULT_BALL_POS: Point2<f64> = Point2::new(0., 0.);
     pub const BALL_RADIUS: f64 = 0.0213;
-    pub const BALL_RESTITUTION: f64 = 0.; // Arbitrary. TODO: Mesure it
+    pub const BALL_RESTITUTION: f64 = 0.01; // Arbitrary. TODO: Mesure it
     pub const BALL_MASS: f64 = 0.008;
     pub const BALL_DAMPING: f64 = 1.;
 
@@ -91,12 +91,12 @@ pub mod real {
     pub const ROBOT_MASS: f64 = 1.; // Arbitrary. TODO: Mesure it
     pub const ROBOT_DAMPING: f64 = 0.; // Arbitrary. TODO: Mesure it
     pub const ROBOT_ANGULAR_DAMPING: f64 = 0.; // Arbitrary. TODO: Mesure it
-    pub const ROBOT_RESTITUTION: f64 = 0.; // Arbitrary. TODO: Mesure it
+    pub const ROBOT_RESTITUTION: f64 = 0.01; // Arbitrary. TODO: Mesure it
     pub const ROBOT_SPEED: f64 = 0.035*PI*2.*150. / 60.; // Arbitrary. TODO: Mesure it
     pub const ROBOT_ANGULAR_SPEED: f64 = 0.1; // Arbitrary. TODO: Mesure it
 
     pub const KICKER_THICKNESS: f64 = 0.01; // Arbitrary. TODO: Mesure it
     pub const KICKER_REACH: f64 = 0.03; // Arbitrary. TODO: Mesure it
-    pub const KICKER_STRENGTH: f64 = 30000.; // Arbitrary. I don't know what unit it is. TODO: Mesure it
-    pub const KICKER_BACK_STRENGTH: f64 = 10.; // Arbitrary
+    pub const KICKER_STRENGTH: f64 = 70.; // Arbitrary. I don't know what unit it is. TODO: Mesure it
+    pub const KICKER_BACK_STRENGTH: f64 = 3.; // Arbitrary
 }
