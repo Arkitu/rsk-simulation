@@ -40,7 +40,6 @@ http_server = [
     "control",
     "json",
     "bitcode",
-    "dep:tmq",
     "zeromq",
     "dep:tokio-tungstenite",
     "wasm_server_runner",
@@ -66,7 +65,6 @@ bitcode = ["serde", "dep:bitcode"]
 async = []
 wasm_server_runner = [
     "dep:anyhow",
-    #"dep:tracing",
     "dep:tracing-subscriber",
     "dep:wasm-bindgen-cli-support",
     "dep:axum",
@@ -128,7 +126,6 @@ futures-util = { version = "0.3", features = ["sink"], optional = true }
 
 # Control
 zmq = { version = "0.10", optional = true }
-tmq = { version = "0.4", optional = true }
 
 # serde
 serde = { version = "1.0", features = ["derive"], optional = true }
@@ -136,7 +133,7 @@ serde_json = { version = "1.0", optional = true }
 bitcode = { version = "0.6", features = ["serde"], optional = true }
 
 # Web socket (server)
-tokio-tungstenite = { version = "0.21", optional = true }
+tokio-tungstenite = { version = "0.23", optional = true }
 
 # Web socket (client)
 wasm-sockets = { version = "1.0", optional = true }
