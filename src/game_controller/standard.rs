@@ -1,6 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use maybe_async::maybe_async;
+use tokio::sync::Mutex;
 
 use crate::constants::simu::*;
 use crate::game_state::{
@@ -94,9 +96,10 @@ impl GC {
             timer: 0,
         }
     }
-    pub fn step(&mut self) {
+    #[maybe_async]
+    pub async fn step(&mut self) {
         #[cfg(not(target_arch = "wasm32"))]
-        let mut tasks = self.tasks.lock().unwrap();
+        let mut tasks = self.tasks.lock().await;
         #[cfg(target_arch = "wasm32")]
         let mut tasks = self.tasks.borrow_mut();
         for robot in Robot::all() {
@@ -129,14 +132,15 @@ impl GC {
         drop(tasks);
         self.simu.step();
         #[cfg(feature = "control")]
-        self.control.publish(self.get_game_state());
+        self.control.publish(self.get_game_state().await);
     }
-    pub fn get_game_state(&self) -> GameState {
+    #[maybe_async]
+    pub async fn get_game_state(&self) -> GameState {
         let robots = Robot::all().map(|r| &self.simu.bodies[self.get_robot_handle(r)]);
         let t = self.simu.t;
         let ball = self.simu.bodies[self.simu.ball].translation();
         #[cfg(not(target_arch = "wasm32"))]
-        let tasks = self.tasks.lock().unwrap();
+        let tasks = self.tasks.lock().await;
         #[cfg(target_arch = "wasm32")]
         let tasks = self.tasks.borrow();
         GameState {

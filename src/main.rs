@@ -20,27 +20,13 @@ mod wasm_server_runner;
 #[cfg(feature = "zeromq")]
 mod zeromq;
 
-#[cfg(all(feature = "standard_gc", not(feature = "http_client_control")))]
-fn main() {
-    #[cfg(target_arch = "wasm32")]
-    {
-        console_log::init_with_level(log::Level::Debug).expect("error initializing log");
-        std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-    }
-
+#[cfg(all(feature = "default_native", not(target_arch = "wasm32")))]
+#[tokio::main]
+async fn main() {
+    use gui::GUITrait;
     let mut gc = game_controller::GC::new("".to_string(), "".to_string(), "".to_string(), "".to_string(), false);
 
-    #[cfg(feature = "gui")]
-    {
-        use gui::GUITrait;
-        gui::GUI::run(gc);
-    }
-    #[cfg(not(any(feature = "gui")))]
-    {
-        loop {
-            gc.step();
-        }
-    }
+    gui::GUI::run(gc);
 }
 
 #[cfg(all(feature = "http_client_gc", target_arch = "wasm32"))]

@@ -20,9 +20,6 @@ use rapier2d_f64::prelude::*;
 const WINDOW_SCALE: f32 = 400. as f32;
 const FIELD_IMG: (f32, f32) = (9335., 7030.);
 
-#[derive(Resource)]
-struct BevyGameState(GameState);
-
 struct BevyGC(GC);
 
 #[derive(Component)]
@@ -105,22 +102,15 @@ fn setup(
     }
 }
 
-fn update_gs(
-    mut gc: NonSendMut<BevyGC>,
-    mut gs: ResMut<BevyGameState>
-) {
-    gc.0.step();
-    gs.0 = gc.0.get_game_state();
-}
-
 fn move_objects(
     mut ball: Query<&mut Transform, With<Ball>>,
     mut robots: Query<(&Robot, &mut Transform, &Children), Without<Ball>>,
     mut kickers: Query<&mut Transform, (With<Kicker>, Without<Ball>, Without<Robot>)>,
-    // gs: Res<BevyGameState>,
     gc: NonSendMut<BevyGC>,
 ) {
-    // let gs = &gs.0;
+    #[cfg(not(target_arch = "wasm32"))]
+    let gs = tokio::runtime::Handle::current().block_on(gc.0.get_game_state());
+    #[cfg(target_arch = "wasm32")]
     let gs = gc.0.get_game_state();
 
     if let Some(ball_pos) = gs.ball {
@@ -146,11 +136,11 @@ fn move_objects(
     }
 }
 
-#[cfg(not(feature = "async"))]
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Default)]
 struct Dragging(Option<RigidBodyHandle>);
 
-#[cfg(feature = "async")]
+#[cfg(target_arch = "wasm32")]
 #[derive(Default)]
 struct Dragging(Rc<RefCell<Option<RigidBodyHandle>>>);
 
@@ -162,22 +152,22 @@ fn select_dragging(
 ) {
     if buttons.just_pressed(MouseButton::Left) {
         if let Some(position) = q_windows.single().cursor_position() {
-            #[cfg(not(feature = "async"))]
+            #[cfg(not(target_arch = "wasm32"))]
             {
                 let entity = gc.0.find_entity_at(bevy_to_simu(position));
                 *dragging = Dragging(Some(entity.unwrap_or(gc.0.get_ball_handle())))
             }
-            #[cfg(feature = "async")]
+            #[cfg(target_arch = "wasm32")]
             {
                 gc.0.find_entity_at_rc(bevy_to_simu(position), dragging.0.clone(), Some(gc.0.get_ball_handle()));
             }
         }
     } else if !buttons.pressed(MouseButton::Left) { // better in async because find_entity_at_rc can update dragging after mouse release
-        #[cfg(not(feature = "async"))]
+        #[cfg(not(target_arch = "wasm32"))]
         {
             *dragging = Dragging(None);
         }
-        #[cfg(feature = "async")]
+        #[cfg(target_arch = "wasm32")]
         {
             *(*dragging.0).borrow_mut() = None
         }
@@ -189,9 +179,9 @@ fn update_dragging(
     q_windows: Query<&Window, With<PrimaryWindow>>,
     dragging: NonSend<Dragging>,
 ) {
-    #[cfg(not(feature = "async"))]
+    #[cfg(not(target_arch = "wasm32"))]
     let entity = dragging.0;
-    #[cfg(feature = "async")]
+    #[cfg(target_arch = "wasm32")]
     let entity = *dragging.0.borrow();
     match entity {
         None => (),
@@ -233,7 +223,6 @@ fn simu_to_bevy(pos: Point<f64>) -> Vec2 {
 pub struct BevyGUI;
 impl GUITrait for BevyGUI {
     fn run(gc: GC) {
-        let gs = gc.get_game_state();
         let mut app = App::new();
         app.add_plugins(DefaultPlugins
                 .set(WindowPlugin {
@@ -249,9 +238,7 @@ impl GUITrait for BevyGUI {
                 }).disable::<LogPlugin>()
             )
             .insert_resource(Time::<Fixed>::from_seconds(DT as f64))
-            .insert_resource(BevyGameState(gs))
             .add_systems(Startup, setup)
-            .add_systems(FixedUpdate, update_gs)
             .add_systems(Update, move_objects)
             .add_systems(Update, select_dragging)
             .add_systems(Update, update_dragging)
