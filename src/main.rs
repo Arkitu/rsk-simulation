@@ -21,8 +21,7 @@ mod wasm_server_runner;
 mod zeromq;
 
 #[cfg(all(feature = "default_native", not(target_arch = "wasm32")))]
-#[tokio::main]
-async fn main() {
+fn main() {
     use gui::GUITrait;
     let mut gc = game_controller::GC::new("".to_string(), "".to_string(), "".to_string(), "".to_string(), false);
 

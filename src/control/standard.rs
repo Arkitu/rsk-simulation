@@ -1,5 +1,5 @@
 use std::{sync::Arc, thread};
-use tokio::{join, runtime::Handle, sync::Mutex};
+use tokio::{join, runtime::{Handle, Runtime}, sync::Mutex};
 use tracing::warn;
 use zeromq::{PubSocket, RepSocket, Socket, SocketSend, SocketRecv};
 
@@ -10,18 +10,22 @@ use crate::game_state::{GameState, Robot, RobotTasks};
 use super::CtrlRes;
 
 pub struct Control {
-    state_socket: PubSocket
+    state_socket: PubSocket,
+    rt: Runtime
 }
 impl Control {
     pub fn new(keys: [String; 2], tasks: Arc<Mutex<[RobotTasks; 4]>>) -> Self {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
         let mut state_socket = PubSocket::new();
         let mut ctrl_socket = RepSocket::new();
+        
+        rt.block_on(state_socket.bind("tcp://127.0.0.1:7557"));
+        rt.block_on(ctrl_socket.bind("tcp://127.0.0.1:7558"));
 
-        let handle = Handle::current();
-        handle.block_on(state_socket.bind("tcp://127.0.0.1:7557"));
-        handle.block_on(ctrl_socket.bind("tcp://127.0.0.1:7558"));
-
-        tokio::spawn(async move {
+        rt.spawn(async move {
             loop {
                 let msg = ctrl_socket.recv().await.unwrap();
                 let req = match msg.get(0) {
@@ -94,12 +98,13 @@ impl Control {
             }
         });
         Self {
+            rt,
             state_socket
         }
     }
     /// Send new game state to client
     pub fn publish(&mut self, gs: GameState) {
         let json = serde_json::to_vec(&gs).unwrap();
-        Handle::current().block_on(self.state_socket.send(json.into())).unwrap();
+        self.rt.block_on(self.state_socket.send(json.into()));
     }
 }

@@ -108,9 +108,6 @@ fn move_objects(
     mut kickers: Query<&mut Transform, (With<Kicker>, Without<Ball>, Without<Robot>)>,
     gc: NonSendMut<BevyGC>,
 ) {
-    #[cfg(not(target_arch = "wasm32"))]
-    let gs = tokio::runtime::Handle::current().block_on(gc.0.get_game_state());
-    #[cfg(target_arch = "wasm32")]
     let gs = gc.0.get_game_state();
 
     if let Some(ball_pos) = gs.ball {

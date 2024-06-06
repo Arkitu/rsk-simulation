@@ -96,10 +96,9 @@ impl GC {
             timer: 0,
         }
     }
-    #[maybe_async]
-    pub async fn step(&mut self) {
+    pub fn step(&mut self) {
         #[cfg(not(target_arch = "wasm32"))]
-        let mut tasks = self.tasks.lock().await;
+        let mut tasks = self.tasks.blocking_lock();
         #[cfg(target_arch = "wasm32")]
         let mut tasks = self.tasks.borrow_mut();
         for robot in Robot::all() {
@@ -132,15 +131,14 @@ impl GC {
         drop(tasks);
         self.simu.step();
         #[cfg(feature = "control")]
-        self.control.publish(self.get_game_state().await);
+        self.control.publish(self.get_game_state());
     }
-    #[maybe_async]
-    pub async fn get_game_state(&self) -> GameState {
+    pub fn get_game_state(&self) -> GameState {
         let robots = Robot::all().map(|r| &self.simu.bodies[self.get_robot_handle(r)]);
         let t = self.simu.t;
         let ball = self.simu.bodies[self.simu.ball].translation();
         #[cfg(not(target_arch = "wasm32"))]
-        let tasks = self.tasks.lock().await;
+        let tasks = self.tasks.blocking_lock();
         #[cfg(target_arch = "wasm32")]
         let tasks = self.tasks.borrow();
         GameState {
