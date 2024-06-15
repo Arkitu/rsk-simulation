@@ -1,5 +1,8 @@
-use std::{sync::Arc, thread};
-use tokio::{join, runtime::{Handle, Runtime}, sync::Mutex};
+//! A control implementation that can only run nativelly and uses a tokio runtime internally
+//! Tries to be as compatible as possible with the official api of the python game controller
+
+use std::sync::Arc;
+use tokio::{runtime::Runtime, sync::Mutex};
 use tracing::warn;
 use zeromq::{PubSocket, RepSocket, Socket, SocketSend, SocketRecv};
 
@@ -7,7 +10,7 @@ use serde_json::Value;
 
 use crate::game_state::{GameState, Robot, RobotTasks};
 
-use super::CtrlRes;
+use crate::control::CtrlRes;
 
 pub struct Control {
     state_socket: PubSocket,
@@ -22,9 +25,9 @@ impl Control {
         let mut state_socket = PubSocket::new();
         let mut ctrl_socket = RepSocket::new();
         
-        rt.block_on(state_socket.bind("tcp://127.0.0.1:7557"));
-        rt.block_on(ctrl_socket.bind("tcp://127.0.0.1:7558"));
-
+        rt.block_on(state_socket.bind("tcp://127.0.0.1:7557")).unwrap();
+        rt.block_on(ctrl_socket.bind("tcp://127.0.0.1:7558")).unwrap();
+        
         rt.spawn(async move {
             loop {
                 let msg = ctrl_socket.recv().await.unwrap();
@@ -41,6 +44,7 @@ impl Control {
                     "blue" | "green" => {
                         let num = (team == "green") as usize;
                         if keys[num] != key {
+                            dbg!(&key);
                             res = CtrlRes::BadKey(team);
                         } else {
                             // TODO: Add option to disable control for one team
@@ -94,7 +98,7 @@ impl Control {
                     "ball" => todo!(),
                     _ => {dbg!(key, team, number, cmd);}
                 }
-                ctrl_socket.send(serde_json::to_vec(&res).unwrap().into()).await;
+                ctrl_socket.send(serde_json::to_vec(&res).unwrap().into()).await.unwrap();
             }
         });
         Self {
@@ -105,6 +109,6 @@ impl Control {
     /// Send new game state to client
     pub fn publish(&mut self, gs: GameState) {
         let json = serde_json::to_vec(&gs).unwrap();
-        self.rt.block_on(self.state_socket.send(json.into()));
+        self.rt.block_on(self.state_socket.send(json.into())).unwrap();
     }
 }

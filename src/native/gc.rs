@@ -1,7 +1,10 @@
+//! The main game controller implementation. Runs both nativelly and on wasm
+
 use std::cell::RefCell;
 use std::rc::Rc;
+#[cfg(not(target_arch = "wasm32"))]
 use std::sync::Arc;
-use maybe_async::maybe_async;
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::sync::Mutex;
 
 use crate::constants::simu::*;
@@ -14,7 +17,7 @@ use rapier2d_f64::prelude::*;
 use tracing::info;
 
 #[cfg(feature = "control")]
-use crate::control::Control;
+use crate::Control;
 
 #[cfg(not(target_arch = "wasm32"))]
 type TasksType = Arc<Mutex<[RobotTasks; 4]>>;
@@ -64,7 +67,7 @@ impl GC {
         blue_team_key: String,
         green_team_key: String,
         blue_team_positive: bool,
-        #[cfg(feature = "http_client_control")]
+        #[cfg(feature = "http_client")]
         session_id: &str
     ) -> Self {
         let simu = Simulation::new();
@@ -74,7 +77,7 @@ impl GC {
             control: Control::new(
                 [blue_team_key.clone(), green_team_key.clone()],
                 tasks.clone(),
-                #[cfg(feature = "http_client_control")]
+                #[cfg(feature = "http_client")]
                 session_id
             ),
             simu,

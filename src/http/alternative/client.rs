@@ -8,8 +8,19 @@ use nalgebra::Point2;
 use tracing::{info, warn};
 use rapier2d_f64::dynamics::RigidBodyHandle;
 use wasm_sockets::{EventClient, Message};
+use crate::native;
 
 const HOST: &'static str = "127.0.0.1:1234";
+
+pub fn main() {
+    console_log::init_with_level(log::Level::Debug).expect("error initializing log");
+    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+
+    wasm_bindgen_futures::spawn_local(async {
+        let mut gc = GC::new().await;
+        native::gui::BevyGUI::run(gc);
+    });
+}
 
 pub struct GC {
     socket: EventClient,
@@ -154,8 +165,12 @@ impl GC {
         }
         id.take().unwrap()
     }
-    pub fn reset(&mut self) {
+    pub fn reset(&self) {
         let msg_bits = bitcode::serialize(&ClientMsg::Reset).unwrap();
+        self.socket.send_binary(msg_bits).unwrap();
+    }
+    pub fn all_kick(&self) {
+        let msg_bits = bitcode::serialize(&ClientMsg::AllKick).unwrap();
         self.socket.send_binary(msg_bits).unwrap();
     }
 }

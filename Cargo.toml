@@ -4,63 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-# GUIs
-gui = []
-bevy_gui = ["dep:bevy", "gui"]
-http_server_gui = [
-    "gui",
-    "alternative_http",
-    "bitcode",
-    "dep:tokio-tungstenite",
-    "wasm_server_runner"
-]
 
-# Game controllers
-gc = []
-standard_gc = ["gc"]
-http_client_gc = [
-    "gc",
-    "alternative_http",
-    "dep:wasm-sockets",
-    "dep:wasm-bindgen-futures",
-    "dep:futures",
-    "dep:gloo-timers",
-    "bitcode"
-]
-
-# Control
 control = []
-standard_control = [
+native_control = [
     "control",
     "json",
     "dep:zeromq",
     "dep:tokio"
 ]
-http_server = [
-    "control",
-    "json",
-    "bitcode",
-    "zeromq",
-    "dep:tokio-tungstenite",
-    "wasm_server_runner",
-    "default_http",
-    "dep:tokio",
-    "dep:futures-util"
-]
-http_client_control = [
-    "control",
-    "json",
-    "bitcode",
-    "dep:wasm-sockets",
-    "default_http",
-    "dep:url",
-    "dep:rand"
-]
 
 serde = ["dep:serde", "rapier2d-f64/serde-serialize"]
 json = ["serde", "dep:serde_json"]
-default_http = []
-alternative_http = []
 bitcode = ["serde", "dep:bitcode"]
 wasm_server_runner = [
     "dep:anyhow",
@@ -78,7 +32,68 @@ wasm_server_runner = [
     "dep:fastrand",
     "dep:rcgen"
 ]
-zeromq = [
+native_gui = ["dep:bevy"]
+simulation = ["dep:rapier2d-f64"]
+native_gc = ["simulation"]
+
+# server: simu + gc + control / client: gui
+# alternative_http = []
+# alternative_http_server = ["standard_control", "standard_gc", "http_server_gui"]
+# alternative_http_client = ["http_client_gc", "bevy_gui"]
+
+# server: control / client: simu + gc + gui
+# default_http = []
+# default_http_server = ["http_server"]
+# default_http_client = ["http_client_control", "standard_gc", "bevy_gui"]
+
+native = [
+    "native_control",
+    "json",
+    "native_gui",
+    "native_gc",
+    "rapier2d-f64/simd-stable"
+]
+
+alternative_http_client = [
+    "native_gui",
+    "dep:wasm-sockets",
+    "dep:wasm-bindgen-futures",
+    "dep:futures",
+    "dep:gloo-timers",
+    "bitcode"
+]
+alternative_http_server = [
+    "bitcode",
+    "dep:tokio-tungstenite",
+    "wasm_server_runner",
+    "dep:websocket",
+    "native_gc",
+    "dep:tokio"
+]
+
+http_client = [
+    "control",
+    "native_gc",
+    "json",
+    "bitcode",
+    "dep:wasm-sockets",
+    "dep:url",
+    "dep:rand",
+    "getrandom/js",
+    "native_gui",
+    "simulation"
+]
+http_server = [
+    "wasm_server_runner",
+    "control",
+    "dep:tokio",
+    "json",
+    "bitcode",
+    "dep:tokio-tungstenite",
+    "dep:dashmap",
+    "dep:futures-util",
+
+    # zeromq
     "dep:thiserror",
     "dep:futures-channel",
     "dep:futures-io",
@@ -100,52 +115,36 @@ zeromq = [
     "dep:asynchronous-codec"
 ]
 
-# server: simu + gc + control / client: gui
-alternative_http_server = ["standard_control", "standard_gc", "http_server_gui"]
-alternative_http_client = ["http_client_gc", "bevy_gui"]
+default = ["alternative_http_server"]
 
-# server: control / client: simu + gc + gui
-default_http_server = ["http_server"]
-default_http_client = ["http_client_control", "standard_gc", "bevy_gui"]
-
-default_native = ["standard_control", "standard_gc", "bevy_gui"]
-
-default = ["default_native"]
 
 [dependencies]
-rapier2d-f64 = { version = "0.19", features = ["simd-stable"] }
 tracing = "0.1"
-nalgebra = { version = "0.32", features = ["convert-glam025"] }
+rand = { version = "0.8", optional = true }
+getrandom = { version = "*", optional = true }
+url = { version = "2.5", optional = true }
+futures-util = { version = "0.3", features = ["sink"], optional = true }
+websocket = { version = "0.27", optional = true }
+
+nalgebra = { version = "0.32", features = ["convert-glam025"]}
+rapier2d-f64 = { version = "0.20", features = ["simd-stable"], optional = true }
+
 bevy = { version = "0.13", default-features = false, features = [
     "jpeg","bevy_asset","bevy_core_pipeline","bevy_render","bevy_sprite","bevy_winit","multi-threaded","webgl2"
 ], optional = true }
-url = { version = "2.5", optional = true }
-rand = { version = "0.8", optional = true }
-futures-util = { version = "0.3", features = ["sink"], optional = true }
-maybe-async = "0.2"
-
-# Control
-zeromq = { version = "*", optional = true }
 
 # serde
 serde = { version = "1.0", features = ["derive"], optional = true }
 serde_json = { version = "1.0", optional = true }
 bitcode = { version = "0.6", features = ["serde"], optional = true }
 
-# Web socket (server)
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+zeromq = { version = "0.4", optional = true }
 tokio-tungstenite = { version = "0.23", optional = true }
-
-# Web socket (client)
-wasm-sockets = { version = "1.0", optional = true }
-
-# Wasm async
-futures = { version = "0.3", optional = true }
-wasm-bindgen-futures = { version = "0.4", optional = true }
-gloo-timers = { version = "0.3", features = ["futures"], optional = true }
 
 # wasm-server-runner
 anyhow = { version = "1.0", optional = true }
-# tracing = { version = "0.1", default-features = false, features = ["release_max_level_debug"], optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 wasm-bindgen-cli-support = { version = "0.2", optional = true }
 axum = { version = "0.7", default-features = false, features = ["http1", "ws"], optional = true }
@@ -181,6 +180,7 @@ once_cell = { version = "1", optional = true }
 log = { version = "0.4", optional = true }
 asynchronous-codec = { version = "0.7", optional = true }
 
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 log = "0.4"
 console_log = "1.0"
@@ -189,6 +189,10 @@ console_error_panic_hook = "0.1"
 tracing-wasm = "0.2"
 web-sys = { version = "0.3", features = ["Location", "Window"] }
 wasm-timer = "0.2"
+wasm-sockets = { version = "1.0", optional = true }
+futures = { version = "0.3", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+gloo-timers = { version = "0.3", features = ["futures"], optional = true }
 
 [build-dependencies]
 cfg_aliases = "0.2"

@@ -63,18 +63,3 @@ impl Serialize for CtrlRes {
         }
     }
 }
-
-#[cfg(all(feature = "standard_control", feature = "http_server_control"))]
-compile_error!("You cannot use multiple control options at the same time!");
-
-#[cfg(feature = "standard_control")]
-mod standard;
-
-#[cfg(feature = "standard_control")]
-pub use standard::Control;
-
-#[cfg(feature = "http_client_control")]
-mod http_client;
-
-#[cfg(feature = "http_client_control")]
-pub use http_client::Control;

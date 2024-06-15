@@ -1,11 +1,12 @@
+//! A GUI built with Bevy that can run nativelly or in wasm
+
 use std::cell::RefCell;
 use std::f64::consts::PI;
 use std::rc::Rc;
 
 use crate::constants::real::*;
-use crate::game_controller::GC;
-use crate::game_state::{GameState, Robot};
-use crate::gui::GUITrait;
+use crate::GC;
+use crate::game_state::Robot;
 use bevy::log::LogPlugin;
 use bevy::window::PrimaryWindow;
 /// Bevy is only used to visualize the simulation
@@ -121,23 +122,24 @@ fn move_objects(
             Robot::Green1 => &gs.markers.green1,
             Robot::Green2 => &gs.markers.green2,
         };
-        *pos = Transform::from_xyz(new_pos.position.x as f32, new_pos.position.y as f32, 1.).looking_to(Vec3::ZERO, Vec3::new((new_pos.orientation + (PI/2.)).cos() as f32, (new_pos.orientation + (PI/2.)).sin() as f32, 0.));
-    
-        let mut kicker_pos = kickers.get_mut(childs[0]).unwrap();
+        *pos = Transform::from_xyz(new_pos.position.x as f32, new_pos.position.y as f32, 1.).looking_to(Vec3::ZERO, Vec3::new((new_pos.orientation + (PI/2.)).cos() as f32, (new_pos.orientation + (PI/2.)).sin() as f32, 0.));    
 
-        let pose = gc.0.get_kicker_pose(*r);
-        let d = ((pose.position.x - new_pos.position.x).powi(2) + (pose.position.y - new_pos.position.y).powi(2)).sqrt();
-
-
-        *kicker_pos = Transform::from_xyz(d as f32, 0., 1.);
+        // In alternative_http mode, the kicker movement is not shown
+        #[cfg(not(feature = "alternative_http_client"))]
+        {
+            let mut kicker_pos = kickers.get_mut(childs[0]).unwrap();
+            let pose = gc.0.get_kicker_pose(*r);
+            let d = ((pose.position.x - new_pos.position.x).powi(2) + (pose.position.y - new_pos.position.y).powi(2)).sqrt();
+            *kicker_pos = Transform::from_xyz(d as f32, 0., 1.);
+        }
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(feature = "alternative_http_client"))]
 #[derive(Default)]
 struct Dragging(Option<RigidBodyHandle>);
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(feature = "alternative_http_client")]
 #[derive(Default)]
 struct Dragging(Rc<RefCell<Option<RigidBodyHandle>>>);
 
@@ -149,22 +151,22 @@ fn select_dragging(
 ) {
     if buttons.just_pressed(MouseButton::Left) {
         if let Some(position) = q_windows.single().cursor_position() {
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(not(feature = "alternative_http_client"))]
             {
                 let entity = gc.0.find_entity_at(bevy_to_simu(position));
                 *dragging = Dragging(Some(entity.unwrap_or(gc.0.get_ball_handle())))
             }
-            #[cfg(target_arch = "wasm32")]
+            #[cfg(feature = "alternative_http_client")]
             {
                 gc.0.find_entity_at_rc(bevy_to_simu(position), dragging.0.clone(), Some(gc.0.get_ball_handle()));
             }
         }
     } else if !buttons.pressed(MouseButton::Left) { // better in async because find_entity_at_rc can update dragging after mouse release
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(feature = "alternative_http_client"))]
         {
             *dragging = Dragging(None);
         }
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(feature = "alternative_http_client")]
         {
             *(*dragging.0).borrow_mut() = None
         }
@@ -176,9 +178,9 @@ fn update_dragging(
     q_windows: Query<&Window, With<PrimaryWindow>>,
     dragging: NonSend<Dragging>,
 ) {
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(not(feature = "alternative_http_client"))]
     let entity = dragging.0;
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(feature = "alternative_http_client")]
     let entity = *dragging.0.borrow();
     match entity {
         None => (),
@@ -203,10 +205,19 @@ fn kick(
     keys: Res<ButtonInput<KeyCode>>
 ) {
     if keys.just_pressed(KeyCode::KeyK) {
+        #[cfg(not(feature = "alternative_http_client"))]
         for r in Robot::all() {
             gc.0.kick(r, 1.);
         }
+        #[cfg(feature = "alternative_http_client")]
+        gc.0.all_kick();
     }
+}
+
+fn step_simulation(
+    mut gc: NonSendMut<BevyGC>
+) {
+    gc.0.step();
 }
 
 fn bevy_to_simu(pos: Vec2) -> Point<f64> {
@@ -218,8 +229,8 @@ fn simu_to_bevy(pos: Point<f64>) -> Vec2 {
 }
 
 pub struct BevyGUI;
-impl GUITrait for BevyGUI {
-    fn run(gc: GC) {
+impl BevyGUI {
+    pub fn run(gc: GC) {
         let mut app = App::new();
         app.add_plugins(DefaultPlugins
                 .set(WindowPlugin {
@@ -235,13 +246,14 @@ impl GUITrait for BevyGUI {
                 }).disable::<LogPlugin>()
             )
             .insert_resource(Time::<Fixed>::from_seconds(DT as f64))
+            .add_systems(FixedUpdate, step_simulation)
             .add_systems(Startup, setup)
             .add_systems(Update, move_objects)
             .add_systems(Update, select_dragging)
             .add_systems(Update, update_dragging)
             .add_systems(Update, reset)
             .add_systems(Update, kick)
-            // BevyGC and Dragging are NonSend with http_client_gc to it's simpler if they always are
+            // BevyGC and Dragging are NonSend on wasm so it's simpler if they always are
             .insert_non_send_resource(BevyGC(gc))
             .insert_non_send_resource(Dragging::default());
 

@@ -8,11 +8,38 @@ use wasm_timer::Instant;
 
 use crate::game_state::{GameState, Robot, RobotTasks};
 use crate::http::default::{ClientMsg, ServerMsg};
+use crate::native;
 
-use super::CtrlRes;
+use crate::control::CtrlRes;
 
 const HOST: &'static str = "127.0.0.1:1234";
 const PUBLISH_RATE: Duration = Duration::from_millis(50);
+
+pub fn main() {
+    use log::info;
+    use url::Url;
+    use rand::distributions::{Alphanumeric, DistString};
+
+    console_log::init_with_level(log::Level::Debug).expect("error initializing log");
+    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+    let mut location = web_sys::window().unwrap().location();
+    let mut url = Url::parse(&location.href().unwrap()).unwrap();
+    if url.path().len() <= 1 {
+        url.set_path(&("/".to_string() + &Alphanumeric.sample_string(&mut rand::thread_rng(), 5)));
+        location.set_href(url.as_str()).unwrap();
+        return
+    }
+
+    let mut session_id = url.path();
+    if session_id.starts_with("/") {
+        session_id = &session_id[1..];
+    }
+    info!("New session (id : {})", session_id);
+
+    let mut gc = native::gc::GC::new("".to_string(), "".to_string(), session_id.to_string(), session_id.to_string(), false, session_id);
+
+    native::gui::BevyGUI::run(gc);
+}
 
 pub struct Control {
     socket: EventClient,
@@ -98,7 +125,6 @@ impl Control {
                     "ball" => todo!(),
                     _ => {dbg!(key, team, number, cmd);}
                 }
-                _ => {}
             }
             let res = serde_json::to_vec(&res).unwrap();
             socket.send_binary(

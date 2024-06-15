@@ -222,7 +222,7 @@ impl Default for GameState {
 
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "bevy_gui", derive(bevy::prelude::Component))]
+#[cfg_attr(feature = "native_gui", derive(bevy::prelude::Component))]
 /// `robot as usize` can be used to index arrays of things related to robots. For example you can get the default position of blue2 with `DEFAULT_ROBOTS_POS[Robot::Blue2 as usize]`
 pub enum Robot {
     Blue1 = 0,
