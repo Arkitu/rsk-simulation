@@ -130,7 +130,7 @@ nalgebra = { version = "0.32", features = ["convert-glam025"]}
 rapier2d-f64 = { version = "0.20", features = ["simd-stable"], optional = true }
 
 bevy = { version = "0.13", default-features = false, features = [
-    "jpeg","bevy_asset","bevy_core_pipeline","bevy_render","bevy_sprite","bevy_winit","multi-threaded","webgl2"
+    "jpeg","bevy_asset","bevy_core_pipeline","bevy_render","bevy_sprite","bevy_winit","multi-threaded","webgl2","x11","wayland"
 ], optional = true }
 
 # serde
