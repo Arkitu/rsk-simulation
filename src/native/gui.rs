@@ -19,7 +19,8 @@ use bevy::{
 use rapier2d_f64::prelude::*;
 
 const WINDOW_SCALE: f32 = 400. as f32;
-const FIELD_IMG: (f32, f32) = (9335., 7030.);
+const LINE_WIDTH: f32 = 0.02;
+const GREEN: Color = Color::rgb(68./255., 170./255., 1./255.);
 
 struct BevyGC(GC);
 
@@ -48,21 +49,62 @@ fn setup(
     });
 
     // Spawn the field background
-    cmds.spawn(SpriteBundle {
-        texture: asset_server.load("field.jpg"),
-        transform: Transform {
-            translation: Vec3::new(0., 0., 0.),
-            scale: Vec3::splat(CARPET.0  as f32 / FIELD_IMG.0),
-            ..Default::default()
-        },
+    cmds.spawn(MaterialMesh2dBundle {
+        mesh: Mesh2dHandle(meshes.add(Rectangle::new(CARPET.0 as f32, CARPET.1 as f32))),
+        material: color_materials.add(GREEN),
+        transform: Transform::from_xyz(0., 0., -2.),
         ..default()
     });
+
+    cmds.spawn(MaterialMesh2dBundle {
+        mesh: Mesh2dHandle(meshes.add(Circle::new(CENTER_CIRCLE_RADIUS as f32))),
+        material: color_materials.add(Color::BLACK),
+        transform: Transform::from_xyz(0., 0., -1.),
+        ..default()
+    });
+    cmds.spawn(MaterialMesh2dBundle {
+        mesh: Mesh2dHandle(meshes.add(Circle::new(CENTER_CIRCLE_RADIUS as f32 - LINE_WIDTH))),
+        material: color_materials.add(GREEN),
+        transform: Transform::from_xyz(0., 0., -0.9999999),
+        ..default()
+    });
+
+    for (i, (x, y, shape, color)) in [
+        // Defense areas
+        ((FIELD.0-DEFENSE_AREA.0)/2., DEFENSE_AREA.1/2., Rectangle::new(DEFENSE_AREA.0 as f32 + LINE_WIDTH, LINE_WIDTH), Color::BLACK),
+        ((FIELD.0-DEFENSE_AREA.0)/2., -DEFENSE_AREA.1/2., Rectangle::new(DEFENSE_AREA.0 as f32 + LINE_WIDTH, LINE_WIDTH), Color::BLACK),
+        ((FIELD.0/2.)-DEFENSE_AREA.0, 0., Rectangle::new(LINE_WIDTH, DEFENSE_AREA.1 as f32 + LINE_WIDTH), Color::BLACK),
+        (-(FIELD.0-DEFENSE_AREA.0)/2., DEFENSE_AREA.1/2., Rectangle::new(DEFENSE_AREA.0 as f32 + LINE_WIDTH, LINE_WIDTH), Color::BLACK),
+        (-(FIELD.0-DEFENSE_AREA.0)/2., -DEFENSE_AREA.1/2., Rectangle::new(DEFENSE_AREA.0 as f32 + LINE_WIDTH, LINE_WIDTH), Color::BLACK),
+        (DEFENSE_AREA.0-(FIELD.0/2.), 0., Rectangle::new(LINE_WIDTH, DEFENSE_AREA.1 as f32 + LINE_WIDTH), Color::BLACK),
+
+        // Borders of the field
+        (0., FIELD.1/2., Rectangle::new(FIELD.0 as f32 + LINE_WIDTH, LINE_WIDTH), Color::WHITE),
+        (0., -FIELD.1/2., Rectangle::new(FIELD.0 as f32 + LINE_WIDTH, LINE_WIDTH), Color::WHITE),
+        (FIELD.0/2., 0., Rectangle::new(LINE_WIDTH, FIELD.1 as f32 + LINE_WIDTH), Color::WHITE),
+        (-FIELD.0/2., 0., Rectangle::new(LINE_WIDTH, FIELD.1 as f32 + LINE_WIDTH), Color::WHITE),
+
+        // Goals
+        (BLUE_GOAL.0.x, BLUE_GOAL.0.y, Rectangle::new(LINE_WIDTH, 0.01), Color::BLACK),
+        (BLUE_GOAL.1.x, BLUE_GOAL.1.y, Rectangle::new(LINE_WIDTH, 0.01), Color::BLACK),
+        (GREEN_GOAL.0.x, GREEN_GOAL.0.y, Rectangle::new(LINE_WIDTH, 0.01), Color::BLACK),
+        (GREEN_GOAL.1.x, GREEN_GOAL.1.y, Rectangle::new(LINE_WIDTH, 0.01), Color::BLACK),
+
+        
+    ].into_iter().enumerate() {
+        cmds.spawn(MaterialMesh2dBundle {
+            mesh: Mesh2dHandle(meshes.add(shape)),
+            material: color_materials.add(color),
+            transform: Transform::from_xyz(x as f32, y as f32, -1. + (i as f32 * 0.000001)),
+            ..default()
+        });
+    }
 
     // Spawn the ball
     cmds.spawn((
         MaterialMesh2dBundle {
             mesh: Mesh2dHandle(meshes.add(Circle {
-                radius: BALL_RADIUS as f32,
+                radius: BALL_RADIUS as f32
             })),
             material: color_materials.add(Color::rgb_u8(247, 107, 49)),
             transform: Transform::from_xyz(DEFAULT_BALL_POS.x  as f32, DEFAULT_BALL_POS.y  as f32, 1.),

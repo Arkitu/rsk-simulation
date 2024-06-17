@@ -19,6 +19,9 @@ pub mod simu {
     pub const MARGIN: f64 = real::MARGIN/MULTIPLIER;
     pub const CARPET: (f64, f64) = (FIELD.0 + 2. * MARGIN, FIELD.1 + 2. * MARGIN);
 
+    pub const DEFENSE_AREA: (f64, f64) = (real::DEFENSE_AREA.0*MULTIPLIER, real::DEFENSE_AREA.0*MULTIPLIER);
+    pub const CENTER_CIRCLE_RADIUS: f64 = real::CENTER_CIRCLE_RADIUS*MULTIPLIER;
+
     pub const GOAL_HEIGHT: f64 = real::GOAL_HEIGHT * MULTIPLIER;
     pub const GREEN_GOAL: (Point2<f64>, Point2<f64>) = (
         Point2::new(-FIELD.0/2., GOAL_HEIGHT/2.),
@@ -60,6 +63,9 @@ pub mod real {
     pub const FIELD: (f64, f64) = (1.83, 1.22);
     pub const MARGIN: f64 = 0.31;
     pub const CARPET: (f64, f64) = (FIELD.0 + 2. * MARGIN, FIELD.1 + 2. * MARGIN);
+
+    pub const DEFENSE_AREA: (f64, f64) = (0.3, 0.9);
+    pub const CENTER_CIRCLE_RADIUS: f64 = 0.3;
 
     pub const GOAL_HEIGHT: f64 = 0.6;
     pub const GREEN_GOAL: (Point2<f64>, Point2<f64>) = (
