@@ -20,7 +20,7 @@ cd rsk-simulation
    - Server/client alternative mode (simulation, game controller and referee on server side. slower) : `cargo build --target wasm32-unknown-unknown --no-default-features --features alternative_http_client && cargo run --no-default-features --features alternative_http_server`
 
 ## Git structure
-- master: The realease branch where everything works
+- master: The release branch where everything works
 - dev: The branch where the next update is being coded
 
 ## Contribution
