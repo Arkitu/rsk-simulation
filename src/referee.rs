@@ -183,9 +183,11 @@ impl GC {
         let ball = gs.ball.unwrap();
         if ball.y.abs() < GOAL_HEIGHT/2. {
             if ball.x < -FIELD.0/2. {
-                
+                self.referee.teams[1].score += 1;
+                self.reset();
             } else if ball.x > FIELD.0/2. {
-
+                self.referee.teams[0].score += 1;
+                self.reset();
             }
         }
     }
