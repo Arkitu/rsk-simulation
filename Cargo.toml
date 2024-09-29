@@ -34,7 +34,11 @@ wasm_server_runner = [
 ]
 native_gui = ["dep:bevy"]
 simulation = ["dep:rapier2d-f64"]
-native_gc = ["simulation"]
+referee = ["simulation"]
+native_gc = [
+    "simulation",
+    "referee"
+]
 
 # server: simu + gc + control / client: gui
 # alternative_http = []
@@ -81,7 +85,8 @@ http_client = [
     "dep:rand",
     "getrandom/js",
     "native_gui",
-    "simulation"
+    "simulation",
+    "referee"
 ]
 http_server = [
     "wasm_server_runner",
@@ -116,7 +121,6 @@ http_server = [
 ]
 
 default = ["native"]
-
 
 [dependencies]
 tracing = "0.1"

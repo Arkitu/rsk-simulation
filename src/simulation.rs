@@ -17,6 +17,7 @@ pub struct Simulation {
     pub colliders: ColliderSet,
     pub goals: [ColliderHandle; 2],
     pub ball: RigidBodyHandle,
+    pub ball_col: ColliderHandle,
     pub robots: [RigidBodyHandle; 4],
     pub kickers: [RigidBodyHandle; 4],
     pub kicker_joints: [ImpulseJointHandle; 4],
@@ -26,7 +27,7 @@ pub struct Simulation {
     physics_pipeline: PhysicsPipeline,
     islands: IslandManager,
     broad_phase: DefaultBroadPhase,
-    narrow_phase: NarrowPhase,
+    pub narrow_phase: NarrowPhase,
     impulse_joints: ImpulseJointSet,
     multibody_joints: MultibodyJointSet,
     ccd_solver: CCDSolver,
@@ -44,8 +45,8 @@ impl Simulation {
 
         // Create the goals
         let goals = [
-            colliders.insert(ColliderBuilder::segment(GREEN_GOAL.0, GREEN_GOAL.1).sensor(true)),
             colliders.insert(ColliderBuilder::segment(BLUE_GOAL.0, BLUE_GOAL.1).sensor(true)),
+            colliders.insert(ColliderBuilder::segment(GREEN_GOAL.0, GREEN_GOAL.1).sensor(true)),
         ];
 
         // Create the ball
@@ -56,7 +57,7 @@ impl Simulation {
                 .can_sleep(false)
                 // .dominance_group(-1)
         );
-        colliders.insert_with_parent(
+        let ball_col = colliders.insert_with_parent(
             ColliderBuilder::ball(BALL_RADIUS)
                 .restitution(BALL_RESTITUTION)
                 .restitution_combine_rule(CoefficientCombineRule::Min)
@@ -136,6 +137,7 @@ impl Simulation {
             colliders,
             goals,
             ball,
+            ball_col,
             robots,
             kickers,
             kicker_joints,

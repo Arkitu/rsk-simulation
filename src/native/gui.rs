@@ -85,10 +85,10 @@ fn setup(
         (-FIELD.0/2., 0., Rectangle::new(LINE_WIDTH, FIELD.1 as f32 + LINE_WIDTH), Color::WHITE),
 
         // Goals
-        (BLUE_GOAL.0.x, BLUE_GOAL.0.y, Rectangle::new(LINE_WIDTH, 0.01), Color::BLACK),
-        (BLUE_GOAL.1.x, BLUE_GOAL.1.y, Rectangle::new(LINE_WIDTH, 0.01), Color::BLACK),
         (GREEN_GOAL.0.x, GREEN_GOAL.0.y, Rectangle::new(LINE_WIDTH, 0.01), Color::BLACK),
         (GREEN_GOAL.1.x, GREEN_GOAL.1.y, Rectangle::new(LINE_WIDTH, 0.01), Color::BLACK),
+        (BLUE_GOAL.0.x, BLUE_GOAL.0.y, Rectangle::new(LINE_WIDTH, 0.01), Color::BLACK),
+        (BLUE_GOAL.1.x, BLUE_GOAL.1.y, Rectangle::new(LINE_WIDTH, 0.01), Color::BLACK),
 
         
     ].into_iter().enumerate() {

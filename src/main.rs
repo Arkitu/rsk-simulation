@@ -2,6 +2,9 @@ mod constants;
 mod game_state;
 mod native;
 
+#[cfg(feature = "referee")]
+mod referee;
+
 #[cfg(feature = "simulation")]
 mod simulation;
 

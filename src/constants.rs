@@ -11,7 +11,7 @@ pub mod simu {
     use super::real;
 
     pub use super::{DT, FRAME_DURATION, PENALTY_DURATION};
-    pub use real::{DEFAULT_ROBOTS_ANGLE, BALL_RESTITUTION, BALL_DAMPING, ROBOT_DAMPING, ROBOT_ANGULAR_DAMPING, ROBOT_RESTITUTION};
+    pub use real::{DEFAULT_ROBOTS_ANGLE, BALL_RESTITUTION, BALL_DAMPING, ROBOT_DAMPING, ROBOT_ANGULAR_DAMPING, ROBOT_RESTITUTION, MATCH_DURATION};
 
     pub const MULTIPLIER: f64 = 10.;
 
@@ -23,11 +23,12 @@ pub mod simu {
     pub const CENTER_CIRCLE_RADIUS: f64 = real::CENTER_CIRCLE_RADIUS*MULTIPLIER;
 
     pub const GOAL_HEIGHT: f64 = real::GOAL_HEIGHT * MULTIPLIER;
-    pub const GREEN_GOAL: (Point2<f64>, Point2<f64>) = (
+    
+    pub const BLUE_GOAL: (Point2<f64>, Point2<f64>) = (
         Point2::new(-FIELD.0/2., GOAL_HEIGHT/2.),
         Point2::new(-FIELD.0/2., -GOAL_HEIGHT/2.)
     );
-    pub const BLUE_GOAL: (Point2<f64>, Point2<f64>) = (
+    pub const GREEN_GOAL: (Point2<f64>, Point2<f64>) = (
         Point2::new(FIELD.0/2., GOAL_HEIGHT/2.),
         Point2::new(FIELD.0/2., -GOAL_HEIGHT/2.)
     );
@@ -54,10 +55,12 @@ pub mod simu {
 
 /// Real constants, without multiplier
 pub mod real {
-    use std::f64::consts::PI;
+    use std::{f64::consts::PI, time::Duration};
 
     use nalgebra::Point2;
     pub use super::{DT, FRAME_DURATION, PENALTY_DURATION};
+
+    pub const MATCH_DURATION: Duration = Duration::from_secs(600);
 
     pub const FIELD: (f64, f64) = (1.83, 1.22);
     pub const MARGIN: f64 = 0.31;
@@ -67,11 +70,11 @@ pub mod real {
     pub const CENTER_CIRCLE_RADIUS: f64 = 0.3;
 
     pub const GOAL_HEIGHT: f64 = 0.6;
-    pub const GREEN_GOAL: (Point2<f64>, Point2<f64>) = (
+    pub const BLUE_GOAL: (Point2<f64>, Point2<f64>) = (
         Point2::new(-FIELD.0/2., GOAL_HEIGHT/2.),
         Point2::new(-FIELD.0/2., -GOAL_HEIGHT/2.)
     );
-    pub const BLUE_GOAL: (Point2<f64>, Point2<f64>) = (
+    pub const GREEN_GOAL: (Point2<f64>, Point2<f64>) = (
         Point2::new(FIELD.0/2., GOAL_HEIGHT/2.),
         Point2::new(FIELD.0/2., -GOAL_HEIGHT/2.)
     );

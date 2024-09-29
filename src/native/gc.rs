@@ -9,10 +9,11 @@ use tokio::sync::Mutex;
 
 use crate::constants::simu::*;
 use crate::game_state::{
-    GameState, Markers, Pose, Referee, RefereeTeam, RefereeTeamRobot, RefereeTeamRobots,
-    RefereeTeams, Robot, RobotTasks,
+    GameState, Markers, Pose, RefereeTeam, RefereeTeamRobot, RefereeTeamRobots,
+    RefereeTeams, Robot, RobotTasks, Referee as GSReferee
 };
 use crate::simulation::Simulation;
+use crate::referee::Referee;
 use rapier2d_f64::prelude::*;
 use tracing::info;
 
@@ -25,40 +26,13 @@ type TasksType = Arc<Mutex<[RobotTasks; 4]>>;
 #[cfg(target_arch = "wasm32")]
 type TasksType = Rc<RefCell<[RobotTasks; 4]>>;
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
-enum GCState {
-    Nothing,
-    GameRunning,
-    GamePaused,
-    Halftime,
-}
-impl From<GCState> for String {
-    fn from(val: GCState) -> Self {
-        match val {
-            GCState::Nothing => "Game is ready to start".to_string(),
-            _ => "".to_string(), // TODO
-        }
-    }
-}
-
-#[derive(Debug)]
-struct GCTeam {
-    name: String,
-    key: String,
-    score: usize
-}
-
 /// Game controller
 pub struct GC {
     #[cfg(feature = "control")]
     control: Control,
     pub simu: Simulation,
-    state: GCState,
-    // [blue, green]
-    teams: [GCTeam; 2],
-    tasks: TasksType,
-    blue_team_positive: bool,
-    timer: usize,
+    /// It’s None if game has not started
+    pub referee: Referee,
 }
 impl GC {
     pub fn new(
@@ -71,39 +45,24 @@ impl GC {
         session_id: &str
     ) -> Self {
         let simu = Simulation::new();
-        let tasks = TasksType::default();
+        let referee = Referee::new(blue_team_name, green_team_name, blue_team_key.clone(), green_team_key.clone(), blue_team_positive);
         Self {
             #[cfg(feature = "control")]
             control: Control::new(
-                [blue_team_key.clone(), green_team_key.clone()],
-                tasks.clone(),
+                [blue_team_key, green_team_key],
+                referee.tasks.clone(),
                 #[cfg(feature = "http_client")]
                 session_id
             ),
             simu,
-            state: GCState::Nothing,
-            teams: [
-                GCTeam {
-                    name: blue_team_name,
-                    key: blue_team_key,
-                    score: 0
-                },
-                GCTeam {
-                    name: green_team_name,
-                    key: green_team_key,
-                    score: 0
-                },
-            ],
-            tasks,
-            blue_team_positive,
-            timer: 0,
+            referee,
         }
     }
     pub fn step(&mut self) {
         #[cfg(not(target_arch = "wasm32"))]
-        let mut tasks = self.tasks.blocking_lock();
+        let mut tasks = self.referee.tasks.blocking_lock();
         #[cfg(target_arch = "wasm32")]
-        let mut tasks = self.tasks.borrow_mut();
+        let mut tasks = self.referee.tasks.borrow_mut();
         for robot in Robot::all() {
             let (x, y, r) = tasks[robot as usize].control;
             let x = x as f64*MULTIPLIER;
@@ -133,6 +92,8 @@ impl GC {
         }
         drop(tasks);
         self.simu.step();
+        #[cfg(feature = "referee")]
+        self.referee_step();
         #[cfg(feature = "control")]
         self.control.publish(self.get_game_state());
     }
@@ -140,10 +101,6 @@ impl GC {
         let robots = Robot::all().map(|r| &self.simu.bodies[self.get_robot_handle(r)]);
         let t = self.simu.t;
         let ball = self.simu.bodies[self.simu.ball].translation();
-        #[cfg(not(target_arch = "wasm32"))]
-        let tasks = self.tasks.blocking_lock();
-        #[cfg(target_arch = "wasm32")]
-        let tasks = self.tasks.borrow();
         GameState {
             ball: Some(point![ball.x/MULTIPLIER, ball.y/MULTIPLIER]),
             markers: Markers {
@@ -176,97 +133,7 @@ impl GC {
                     orientation: robots[Robot::Green2 as usize].rotation().angle(),
                 },
             },
-            referee: Referee {
-                teams: RefereeTeams {
-                    blue: RefereeTeam {
-                        name: self.teams[0].name.clone(),
-                        x_positive: self.blue_team_positive,
-                        score: self.teams[0].score,
-                        robots: RefereeTeamRobots {
-                            one: if let Some((reason, start)) = &tasks[0].penalty {
-                                RefereeTeamRobot {
-                                    penalized: true,
-                                    penalized_remaining: Some((start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000),
-                                    penalized_reason: Some(reason.to_string()),
-                                    preempted: true,
-                                    preemption_reasons: vec![reason.to_string()]
-                                }
-                            } else {
-                                RefereeTeamRobot {
-                                    penalized: false,
-                                    penalized_remaining: None,
-                                    penalized_reason: None,
-                                    preempted: false,
-                                    preemption_reasons: vec![]
-                                }
-                            },
-                            two: if let Some((reason, start)) = &tasks[1].penalty {
-                                RefereeTeamRobot {
-                                    penalized: true,
-                                    penalized_remaining: Some((start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000),
-                                    penalized_reason: Some(reason.to_string()),
-                                    preempted: true,
-                                    preemption_reasons: vec![reason.to_string()]
-                                }
-                            } else {
-                                RefereeTeamRobot {
-                                    penalized: false,
-                                    penalized_remaining: None,
-                                    penalized_reason: None,
-                                    preempted: false,
-                                    preemption_reasons: vec![]
-                                }
-                            },
-                        },
-                    },
-                    green: RefereeTeam {
-                        name: self.teams[1].name.clone(),
-                        x_positive: !self.blue_team_positive,
-                        score: self.teams[1].score,
-                        robots: RefereeTeamRobots {
-                            one: if let Some((reason, start)) = &tasks[2].penalty {
-                                RefereeTeamRobot {
-                                    penalized: true,
-                                    penalized_remaining: Some((start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000),
-                                    penalized_reason: Some(reason.to_string()),
-                                    preempted: true,
-                                    preemption_reasons: vec![reason.to_string()]
-                                }
-                            } else {
-                                RefereeTeamRobot {
-                                    penalized: false,
-                                    penalized_remaining: None,
-                                    penalized_reason: None,
-                                    preempted: false,
-                                    preemption_reasons: vec![]
-                                }
-                            },
-                            two: if let Some((reason, start)) = &tasks[3].penalty {
-                                RefereeTeamRobot {
-                                    penalized: true,
-                                    penalized_remaining: Some((start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000),
-                                    penalized_reason: Some(reason.to_string()),
-                                    preempted: true,
-                                    preemption_reasons: vec![reason.to_string()]
-                                }
-                            } else {
-                                RefereeTeamRobot {
-                                    penalized: false,
-                                    penalized_remaining: None,
-                                    penalized_reason: None,
-                                    preempted: false,
-                                    preemption_reasons: vec![]
-                                }
-                            },
-                        },
-                    },
-                },
-                game_is_running: self.state == GCState::GameRunning,
-                game_paused: self.state == GCState::GamePaused,
-                halftime_is_running: self.state == GCState::Halftime,
-                timer: self.timer * FRAME_DURATION / 1000,
-                game_state_msg: self.state.into(),
-            },
+            referee: self.referee.get_gs_referee(self.simu.t)
         }
     }
     pub fn find_entity_at(&mut self, pos: Point<f64>) -> Option<RigidBodyHandle> {
