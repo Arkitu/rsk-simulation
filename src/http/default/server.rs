@@ -124,6 +124,7 @@ pub async fn main() {
             let (snd, mut ctrl_receiver) = mpsc::unbounded_channel();
             let (ctrl_sender, rcv) = mpsc::unbounded_channel();
 
+            // TODO : if id already exists, lauch in spectator mode
             ctrl_sessions.insert(session_id.clone(), (
                 snd,
                 rcv

@@ -473,7 +473,7 @@ pub async fn main(wasm_file: String) -> Result<(), anyhow::Error> {
     let custom_index_html = std::env::var("WASM_SERVER_RUNNER_CUSTOM_INDEX_HTML")
         .ok()
         .map(PathBuf::from);
-    let https = bool_option("WASM_SERVER_RUNNER_HTTPS", false)?;
+    let https = bool_option("WASM_SERVER_RUNNER_HTTPS", true)?;
     let no_module = bool_option("WASM_SERVER_RUNNER_NO_MODULE", false)?;
 
     let options = Options {
