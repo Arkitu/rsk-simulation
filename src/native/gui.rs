@@ -299,6 +299,6 @@ impl BevyGUI {
             .insert_non_send_resource(BevyGC(gc))
             .insert_non_send_resource(Dragging::default());
 
-        app.run()
+        app.run();
     }
 }
