@@ -13,7 +13,7 @@ pub mod simu {
     pub use super::{DT, FRAME_DURATION, PENALTY_DURATION};
     pub use real::{DEFAULT_ROBOTS_ANGLE, BALL_RESTITUTION, BALL_DAMPING, ROBOT_DAMPING, ROBOT_ANGULAR_DAMPING, ROBOT_RESTITUTION};
 
-    pub const MULTIPLIER: f64 = 100.;
+    pub const MULTIPLIER: f64 = 10.;
 
     pub const FIELD: (f64, f64) = (real::FIELD.0*MULTIPLIER, real::FIELD.1*MULTIPLIER);
     pub const MARGIN: f64 = real::MARGIN/MULTIPLIER;
@@ -45,12 +45,11 @@ pub mod simu {
 
     pub const ROBOT_RADIUS: f64 = real::ROBOT_RADIUS * MULTIPLIER;
     pub const KICKER_THICKNESS: f64 = real::KICKER_THICKNESS * MULTIPLIER;
-    pub const ROBOT_MASS: f64 = real::ROBOT_MASS * MULTIPLIER*MULTIPLIER*MULTIPLIER;
+    pub const ROBOT_MASS: f64 = 10.;
     pub const ROBOT_SPEED: f64 = real::ROBOT_SPEED * MULTIPLIER;
     pub const ROBOT_ANGULAR_SPEED: f64 = real::ROBOT_ANGULAR_SPEED * MULTIPLIER;
     pub const KICKER_REACH: f64 = real::KICKER_REACH * MULTIPLIER;
     pub const KICKER_STRENGTH: f64 = real::KICKER_STRENGTH * MULTIPLIER;
-    pub const KICKER_BACK_STRENGTH: f64 = real::KICKER_BACK_STRENGTH * MULTIPLIER;
 }
 
 /// Real constants, without multiplier
@@ -94,15 +93,13 @@ pub mod real {
     pub const BALL_DAMPING: f64 = 1.;
 
     pub const ROBOT_RADIUS: f64 = 0.088; // From the python simulation. TODO: Mesure it
-    pub const ROBOT_MASS: f64 = 1.; // Arbitrary. TODO: Mesure it
     pub const ROBOT_DAMPING: f64 = 0.; // Arbitrary. TODO: Mesure it
     pub const ROBOT_ANGULAR_DAMPING: f64 = 0.; // Arbitrary. TODO: Mesure it
     pub const ROBOT_RESTITUTION: f64 = 0.01; // Arbitrary. TODO: Mesure it
     pub const ROBOT_SPEED: f64 = 0.035*PI*2.*150. / 60.; // Arbitrary. TODO: Mesure it
     pub const ROBOT_ANGULAR_SPEED: f64 = 0.1; // Arbitrary. TODO: Mesure it
 
-    pub const KICKER_THICKNESS: f64 = 0.01; // Arbitrary. TODO: Mesure it
+    pub const KICKER_THICKNESS: f64 = 0.10; // Arbitrary. TODO: Mesure it
     pub const KICKER_REACH: f64 = 0.03; // Arbitrary. TODO: Mesure it
-    pub const KICKER_STRENGTH: f64 = 70.; // Arbitrary. I don't know what unit it is. TODO: Mesure it
-    pub const KICKER_BACK_STRENGTH: f64 = 3.; // Arbitrary
+    pub const KICKER_STRENGTH: f64 = 300.; // Arbitrary. I don't know what unit it is. TODO: Mesure it
 }

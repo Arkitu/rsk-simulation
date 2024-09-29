@@ -87,7 +87,7 @@ impl Simulation {
                     point![-r * 0.866, -r * 0.5],
                     point![-r * 0.866, r * 0.5],
                 ], 0.001).unwrap()
-                    .mass(ROBOT_MASS)
+                    .mass(10.)
                     .restitution(ROBOT_RESTITUTION)
                     .restitution_combine_rule(CoefficientCombineRule::Min)
                     .collision_groups(InteractionGroups::new(*collision_group, Group::all())),
@@ -106,6 +106,7 @@ impl Simulation {
         let mut kicker_joints = kickers.iter().zip(robots.iter()).zip(ROBOT_COLLISION_GROUPS.iter()).map(|((kicker, robot), collision_group)| {
             colliders.insert_with_parent(
                 ColliderBuilder::cuboid(KICKER_THICKNESS, ROBOT_RADIUS)
+                    .position(Point::new(-9., 0.).into())
                     .restitution(ROBOT_RESTITUTION)
                     .restitution_combine_rule(CoefficientCombineRule::Min)
                     .collision_groups(InteractionGroups::new(KICKER_COLLISION_GROUP, collision_group.complement())),
@@ -119,7 +120,7 @@ impl Simulation {
                     .local_anchor1(Point::new(ROBOT_RADIUS*0.866, 0.))
                     .local_anchor2(Point::new(0., 0.))
                     .limits([0.0, KICKER_REACH])
-                    .motor_position(0., KICKER_BACK_STRENGTH, 0.),
+                    .motor_position(0., KICKER_STRENGTH, 0.),
                 true
             )
         });
@@ -186,7 +187,7 @@ impl Simulation {
                     .data
                     .as_prismatic_mut()
                     .unwrap()
-                    .set_motor_position(0., KICKER_BACK_STRENGTH, 0.);
+                    .set_motor_position(0., KICKER_STRENGTH, 0.);
             } else {
                 *t -= 1;
             }
@@ -231,7 +232,7 @@ impl Simulation {
             .as_prismatic_mut()
             .unwrap()
             .set_motor_position(10., KICKER_STRENGTH*f, 0.);
-        self.kicker_timer[id as usize] = 1000;
+        self.kicker_timer[id as usize] = 10;
     }
     pub fn reset(&mut self) {
         for (_, b) in self.bodies.iter_mut() {

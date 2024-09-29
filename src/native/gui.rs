@@ -115,7 +115,7 @@ fn setup(
 
     // Spawn the robots
     let hexagon = Mesh2dHandle(meshes.add(RegularPolygon::new(ROBOT_RADIUS  as f32, 6)));
-    let rect = Mesh2dHandle(meshes.add(Rectangle::new(KICKER_THICKNESS as f32, ROBOT_RADIUS as f32))); //ROBOT_RADIUS as f32 * 0.866, ROBOT_RADIUS as f32 * 0.5, (ROBOT_RADIUS as f32 * 0.866)+(KICKER_THICKNESS as f32), ROBOT_RADIUS as f32 * 0.5)));
+    let rect = Mesh2dHandle(meshes.add(Rectangle::new(0.01, ROBOT_RADIUS as f32))); //ROBOT_RADIUS as f32 * 0.866, ROBOT_RADIUS as f32 * 0.5, (ROBOT_RADIUS as f32 * 0.866)+(KICKER_THICKNESS as f32), ROBOT_RADIUS as f32 * 0.5)));
 
     let blue = color_materials.add(Color::rgb_u8(0, 0, 255));
     let green = color_materials.add(Color::rgb_u8(0, 255, 0));

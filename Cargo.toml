@@ -115,7 +115,7 @@ http_server = [
     "dep:asynchronous-codec"
 ]
 
-default = ["http_server"]
+default = ["native"]
 
 
 [dependencies]
