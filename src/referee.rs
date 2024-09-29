@@ -179,21 +179,30 @@ impl Referee {
 impl GC {
     #[cfg(feature = "referee")]
     pub fn referee_step(&mut self) {
+        use rapier2d_f64::math::Point;
         use tracing::info;
 
         if let PlayState::GameRunning(_) = self.referee.state {
             let gs = self.get_game_state();
-            let ball = gs.ball.unwrap();
+            let mut ball = gs.ball.unwrap();
+            // Check for goals
             if ball.y.abs() < GOAL_HEIGHT/2. {
                 if ball.x < -FIELD.0/2. {
                     self.referee.teams[1].score += 1;
                     self.reset();
+                    ball = DEFAULT_BALL_POS;
                     info!(target:"referee", "Green scored!");
                 } else if ball.x > FIELD.0/2. {
                     self.referee.teams[0].score += 1;
                     self.reset();
+                    ball = DEFAULT_BALL_POS;
                     info!(target:"referee", "Blue scored!");
                 }
+            }
+            // Check out of field
+            if ball.y.abs() > FIELD.1/2. || ball.x.abs() > FIELD.0/2. {
+                self.teleport_entity(self.simu.ball, Point::new(DOT_POS.0*ball.x.signum(), DOT_POS.1*ball.y.signum()), None);
+                info!(target:"referee", "Ball out of field");
             }
         }
     }

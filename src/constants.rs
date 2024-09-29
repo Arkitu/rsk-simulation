@@ -21,6 +21,7 @@ pub mod simu {
 
     pub const DEFENSE_AREA: (f64, f64) = (real::DEFENSE_AREA.0*MULTIPLIER, real::DEFENSE_AREA.0*MULTIPLIER);
     pub const CENTER_CIRCLE_RADIUS: f64 = real::CENTER_CIRCLE_RADIUS*MULTIPLIER;
+    pub const DOT_POS: (f64, f64) = (real::DOT_POS.0*MULTIPLIER, real::DOT_POS.1*MULTIPLIER);
 
     pub const GOAL_HEIGHT: f64 = real::GOAL_HEIGHT * MULTIPLIER;
     
@@ -68,6 +69,7 @@ pub mod real {
 
     pub const DEFENSE_AREA: (f64, f64) = (0.3, 0.9);
     pub const CENTER_CIRCLE_RADIUS: f64 = 0.3;
+    pub const DOT_POS: (f64, f64) = (0.45, 0.305);
 
     pub const GOAL_HEIGHT: f64 = 0.6;
     pub const BLUE_GOAL: (Point2<f64>, Point2<f64>) = (

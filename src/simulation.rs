@@ -219,6 +219,8 @@ impl Simulation {
         let mut iso: Isometry2<f64> = pos.into();
         iso.rotation = r.map(|r| Rotation::new(r)).unwrap_or_else(|| *body.rotation());
         body.set_position(iso, true);
+        body.set_linvel(Vector::zeros(), true);
+        body.set_angvel(0., true);
     }
     pub fn teleport_ball(&mut self, pos: Point<f64>) {
         self.teleport_entity(self.get_ball_handle(), pos, None);
