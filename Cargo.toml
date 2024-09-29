@@ -55,7 +55,8 @@ native = [
     "json",
     "native_gui",
     "native_gc",
-    "rapier2d-f64/simd-stable"
+    "rapier2d-f64/simd-stable",
+    "dep:tracing-subscriber"
 ]
 
 alternative_http_client = [

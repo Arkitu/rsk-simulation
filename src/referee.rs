@@ -5,7 +5,7 @@ use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
 use tokio::sync::Mutex;
 use crate::{game_state::GameState, simulation::Simulation, GC};
-use crate::constants::simu::*;
+use crate::constants::real::*;
 use crate::game_state::{Referee as GSReferee, RefereeTeam, RefereeTeamRobot, RefereeTeamRobots, RefereeTeams, RobotTasks};
 
 
@@ -69,7 +69,7 @@ impl Referee {
                 },
             ],
             blue_team_positive,
-            state: PlayState::Nothing,
+            state: PlayState::GameRunning(0),
             tasks: TasksType::default()
         }
     }
@@ -179,15 +179,21 @@ impl Referee {
 impl GC {
     #[cfg(feature = "referee")]
     pub fn referee_step(&mut self) {
-        let gs = self.get_game_state();
-        let ball = gs.ball.unwrap();
-        if ball.y.abs() < GOAL_HEIGHT/2. {
-            if ball.x < -FIELD.0/2. {
-                self.referee.teams[1].score += 1;
-                self.reset();
-            } else if ball.x > FIELD.0/2. {
-                self.referee.teams[0].score += 1;
-                self.reset();
+        use tracing::info;
+
+        if let PlayState::GameRunning(_) = self.referee.state {
+            let gs = self.get_game_state();
+            let ball = gs.ball.unwrap();
+            if ball.y.abs() < GOAL_HEIGHT/2. {
+                if ball.x < -FIELD.0/2. {
+                    self.referee.teams[1].score += 1;
+                    self.reset();
+                    info!(target:"referee", "Green scored!");
+                } else if ball.x > FIELD.0/2. {
+                    self.referee.teams[0].score += 1;
+                    self.reset();
+                    info!(target:"referee", "Blue scored!");
+                }
             }
         }
     }
