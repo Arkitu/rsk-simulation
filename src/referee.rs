@@ -85,10 +85,10 @@ impl Referee {
                     x_positive: self.blue_team_positive,
                     score: self.teams[0].score,
                     robots: RefereeTeamRobots {
-                        one: if let Some((reason, start)) = &tasks[0].penalty {
+                        one: if let Some((reason, end)) = &tasks[0].penalty {
                             RefereeTeamRobot {
                                 penalized: true,
-                                penalized_remaining: Some((start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000),
+                                penalized_remaining: Some(end.saturating_sub(t) * FRAME_DURATION / 1000),
                                 penalized_reason: Some(reason.to_string()),
                                 preempted: true,
                                 preemption_reasons: vec![reason.to_string()]
@@ -102,10 +102,10 @@ impl Referee {
                                 preemption_reasons: vec![]
                             }
                         },
-                        two: if let Some((reason, start)) = &tasks[1].penalty {
+                        two: if let Some((reason, end)) = &tasks[1].penalty {
                             RefereeTeamRobot {
                                 penalized: true,
-                                penalized_remaining: Some((start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000),
+                                penalized_remaining: Some(end.saturating_sub(t) * FRAME_DURATION / 1000),
                                 penalized_reason: Some(reason.to_string()),
                                 preempted: true,
                                 preemption_reasons: vec![reason.to_string()]
@@ -126,10 +126,10 @@ impl Referee {
                     x_positive: !self.blue_team_positive,
                     score: self.teams[1].score,
                     robots: RefereeTeamRobots {
-                        one: if let Some((reason, start)) = &tasks[2].penalty {
+                        one: if let Some((reason, end)) = &tasks[2].penalty {
                             RefereeTeamRobot {
                                 penalized: true,
-                                penalized_remaining: Some((start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000),
+                                penalized_remaining: Some(end.saturating_sub(t) * FRAME_DURATION / 1000),
                                 penalized_reason: Some(reason.to_string()),
                                 preempted: true,
                                 preemption_reasons: vec![reason.to_string()]
@@ -143,10 +143,10 @@ impl Referee {
                                 preemption_reasons: vec![]
                             }
                         },
-                        two: if let Some((reason, start)) = &tasks[3].penalty {
+                        two: if let Some((reason, end)) = &tasks[3].penalty {
                             RefereeTeamRobot {
                                 penalized: true,
-                                penalized_remaining: Some((start+PENALTY_DURATION).saturating_sub(t) * FRAME_DURATION / 1000),
+                                penalized_remaining: Some(end.saturating_sub(t) * FRAME_DURATION / 1000),
                                 penalized_reason: Some(reason.to_string()),
                                 preempted: true,
                                 preemption_reasons: vec![reason.to_string()]
