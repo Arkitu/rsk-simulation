@@ -238,8 +238,8 @@ impl Robot {
 
 #[derive(Default)]
 pub struct RobotTasks {
-    /// (reason, end)
-    pub penalty: Option<(&'static str, usize)>,
+    /// (reason, end, penalty_spot)
+    pub penalty: Option<(&'static str, usize, usize)>,
     /// (x, y, rotation)
     pub control: (f32, f32, f32),
     /// strength

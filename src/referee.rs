@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use crate::{game_state::GameState, simulation::Simulation, GC};
 use crate::constants::real::*;
-use crate::game_state::{Referee as GSReferee, RefereeTeam, RefereeTeamRobot, RefereeTeamRobots, RefereeTeams, RobotTasks};
+use crate::game_state::{Referee as GSReferee, RefereeTeam, RefereeTeamRobot, RefereeTeamRobots, RefereeTeams, Robot, RobotTasks};
 
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -42,7 +42,7 @@ impl From<PlayState> for String {
 
 pub struct Referee {
     /// [blue, green]
-    pub teams: [Team; 2],
+    teams: [Team; 2],
     blue_team_positive: bool,
     state: PlayState,
     pub tasks: TasksType
@@ -85,7 +85,7 @@ impl Referee {
                     x_positive: self.blue_team_positive,
                     score: self.teams[0].score,
                     robots: RefereeTeamRobots {
-                        one: if let Some((reason, end)) = &tasks[0].penalty {
+                        one: if let Some((reason, end, _)) = &tasks[0].penalty {
                             RefereeTeamRobot {
                                 penalized: true,
                                 penalized_remaining: Some(end.saturating_sub(t) * FRAME_DURATION / 1000),
@@ -102,7 +102,7 @@ impl Referee {
                                 preemption_reasons: vec![]
                             }
                         },
-                        two: if let Some((reason, end)) = &tasks[1].penalty {
+                        two: if let Some((reason, end, _)) = &tasks[1].penalty {
                             RefereeTeamRobot {
                                 penalized: true,
                                 penalized_remaining: Some(end.saturating_sub(t) * FRAME_DURATION / 1000),
@@ -126,7 +126,7 @@ impl Referee {
                     x_positive: !self.blue_team_positive,
                     score: self.teams[1].score,
                     robots: RefereeTeamRobots {
-                        one: if let Some((reason, end)) = &tasks[2].penalty {
+                        one: if let Some((reason, end, _)) = &tasks[2].penalty {
                             RefereeTeamRobot {
                                 penalized: true,
                                 penalized_remaining: Some(end.saturating_sub(t) * FRAME_DURATION / 1000),
@@ -143,7 +143,7 @@ impl Referee {
                                 preemption_reasons: vec![]
                             }
                         },
-                        two: if let Some((reason, end)) = &tasks[3].penalty {
+                        two: if let Some((reason, end, _)) = &tasks[3].penalty {
                             RefereeTeamRobot {
                                 penalized: true,
                                 penalized_remaining: Some(end.saturating_sub(t) * FRAME_DURATION / 1000),
@@ -177,7 +177,6 @@ impl Referee {
     }
 }
 impl GC {
-    #[cfg(feature = "referee")]
     pub fn referee_step(&mut self) {
         use rapier2d_f64::math::Point;
         use tracing::info;
@@ -206,5 +205,31 @@ impl GC {
             }
         }
     }
-    
+    pub fn penalize(&self, r: Robot) {
+        #[cfg(not(target_arch = "wasm32"))]
+        let mut tasks = self.referee.tasks.blocking_lock();
+        #[cfg(target_arch = "wasm32")]
+        let mut tasks = self.referee.tasks.borrow();
+
+        let r_pos = self.simu.bodies[self.simu.robots[r as usize]].translation();
+        
+        let spot = PENALTY_DOTS.into_iter()
+            .enumerate()
+            .reduce(|acc, (i, p)| {
+                if self.simu.robots.iter().any(|r|
+                    (self.simu.bodies.get(*r).unwrap().translation()-p.coords).norm()>ROBOT_RADIUS
+                ) || tasks.iter().any(|t|
+                    match t.penalty {
+                        None => false,
+                        Some((_, _, s)) => s == i
+                    }
+                ) || (acc.1.coords-r_pos).norm() < (p.coords-r_pos).norm() {
+                    return acc;
+                } else {
+                    return (i, p);
+                }
+            });
+
+        
+    }
 }

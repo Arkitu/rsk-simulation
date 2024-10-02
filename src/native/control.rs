@@ -57,7 +57,7 @@ impl Control {
                             } {
                                 let mut tasks = tasks.lock().await;
                                 let mut preempted = false;
-                                if let Some((r, _)) = tasks[r as usize].penalty {
+                                if let Some((r, _, _)) = tasks[r as usize].penalty {
                                     preempted = true;
                                     res = CtrlRes::Preempted(team, number, r.to_string());
                                 }

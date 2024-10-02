@@ -23,16 +23,16 @@ pub mod simu {
     pub const CENTER_CIRCLE_RADIUS: f64 = real::CENTER_CIRCLE_RADIUS*MULTIPLIER;
     pub const DOT_POS: (f64, f64) = (real::DOT_POS.0*MULTIPLIER, real::DOT_POS.1*MULTIPLIER);
 
-    pub const PENALTY_DOTS: [(f64, f64); 8] = [
-        (-FIELD.0*1.5/5., FIELD.1/2.),
-        (-FIELD.0*0.5/5., FIELD.1/2.),
-        (FIELD.0*0.5/5., FIELD.1/2.),
-        (FIELD.0*1.5/5., FIELD.1/2.),
+    pub const PENALTY_DOTS: [Point2<f64>; 8] = [
+        Point2::new(-FIELD.0*1.5/5., FIELD.1/2.),
+        Point2::new(-FIELD.0*0.5/5., FIELD.1/2.),
+        Point2::new(FIELD.0*0.5/5., FIELD.1/2.),
+        Point2::new(FIELD.0*1.5/5., FIELD.1/2.),
 
-        (-FIELD.0*1.5/5., -FIELD.1/2.),
-        (-FIELD.0*0.5/5., -FIELD.1/2.),
-        (FIELD.0*0.5/5., -FIELD.1/2.),
-        (FIELD.0*1.5/5., -FIELD.1/2.),
+        Point2::new(-FIELD.0*1.5/5., -FIELD.1/2.),
+        Point2::new(-FIELD.0*0.5/5., -FIELD.1/2.),
+        Point2::new(FIELD.0*0.5/5., -FIELD.1/2.),
+        Point2::new(FIELD.0*1.5/5., -FIELD.1/2.),
     ];
 
     pub const GOAL_HEIGHT: f64 = real::GOAL_HEIGHT * MULTIPLIER;
@@ -83,16 +83,16 @@ pub mod real {
     pub const CENTER_CIRCLE_RADIUS: f64 = 0.3;
     pub const DOT_POS: (f64, f64) = (0.45, 0.305);
 
-    pub const PENALTY_DOTS: [(f64, f64); 8] = [
-        (-FIELD.0*1.5/5., FIELD.1/2.),
-        (-FIELD.0*0.5/5., FIELD.1/2.),
-        (FIELD.0*0.5/5., FIELD.1/2.),
-        (FIELD.0*1.5/5., FIELD.1/2.),
+    pub const PENALTY_DOTS: [Point2<f64>; 8] = [
+        Point2::new(-FIELD.0*1.5/5., FIELD.1/2.),
+        Point2::new(-FIELD.0*0.5/5., FIELD.1/2.),
+        Point2::new(FIELD.0*0.5/5., FIELD.1/2.),
+        Point2::new(FIELD.0*1.5/5., FIELD.1/2.),
 
-        (-FIELD.0*1.5/5., -FIELD.1/2.),
-        (-FIELD.0*0.5/5., -FIELD.1/2.),
-        (FIELD.0*0.5/5., -FIELD.1/2.),
-        (FIELD.0*1.5/5., -FIELD.1/2.),
+        Point2::new(-FIELD.0*1.5/5., -FIELD.1/2.),
+        Point2::new(-FIELD.0*0.5/5., -FIELD.1/2.),
+        Point2::new(FIELD.0*0.5/5., -FIELD.1/2.),
+        Point2::new(FIELD.0*1.5/5., -FIELD.1/2.),
     ];
 
     pub const GOAL_HEIGHT: f64 = 0.6;
