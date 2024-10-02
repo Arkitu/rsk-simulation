@@ -205,18 +205,24 @@ impl GC {
             }
         }
     }
-    pub fn penalize(&self, r: Robot) {
+    pub fn penalize(&self, r: Robot, reason: &'static str) {
         #[cfg(not(target_arch = "wasm32"))]
         let mut tasks = self.referee.tasks.blocking_lock();
         #[cfg(target_arch = "wasm32")]
         let mut tasks = self.referee.tasks.borrow();
+
+        if let Some(p) = tasks[r as usize].penalty.as_mut() {
+            p.0 = reason;
+            p.1 += PENALTY_DURATION;
+            return
+        }
 
         let r_pos = self.simu.bodies[self.simu.robots[r as usize]].translation();
         
         let spot = PENALTY_DOTS.into_iter()
             .enumerate()
             .reduce(|acc, (i, p)| {
-                if self.simu.robots.iter().any(|r|
+                if self.simu.robots.iter().enumerate().filter(|(i,_)| *i != r as usize).any(|(_,r)|
                     (self.simu.bodies.get(*r).unwrap().translation()-p.coords).norm()>ROBOT_RADIUS
                 ) || tasks.iter().any(|t|
                     match t.penalty {
@@ -228,7 +234,9 @@ impl GC {
                 } else {
                     return (i, p);
                 }
-            });
+            }).unwrap();
+        
+        tasks[r as usize].penalty = Some((reason, self.simu.t+PENALTY_DURATION, spot.0));
 
         
     }
