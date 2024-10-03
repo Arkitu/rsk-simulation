@@ -255,6 +255,14 @@ fn kick(
         gc.0.all_kick();
     }
 }
+fn penalize(
+    mut gc: NonSendMut<BevyGC>,
+    keys: Res<ButtonInput<KeyCode>>
+) {
+    if keys.just_pressed(KeyCode::KeyP) {
+        gc.0.penalize(Robot::Blue1, "test");
+    }
+}
 
 fn step_simulation(
     mut gc: NonSendMut<BevyGC>
@@ -295,6 +303,7 @@ impl BevyGUI {
             .add_systems(Update, update_dragging)
             .add_systems(Update, reset)
             .add_systems(Update, kick)
+            .add_systems(Update, penalize)
             // BevyGC and Dragging are NonSend on wasm so it's simpler if they always are
             .insert_non_send_resource(BevyGC(gc))
             .insert_non_send_resource(Dragging::default());

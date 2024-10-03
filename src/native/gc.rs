@@ -136,9 +136,11 @@ impl GC {
             referee: self.referee.get_gs_referee(self.simu.t)
         }
     }
+    /// pos in real coordinates
     pub fn find_entity_at(&mut self, pos: Point<f64>) -> Option<RigidBodyHandle> {
         self.simu.find_entity_at(pos*MULTIPLIER)
     }
+    /// pos in real coordinates
     pub fn teleport_entity(&mut self, entity: RigidBodyHandle, pos: Point<f64>, r: Option<f64>) {
         self.simu.teleport_entity(entity, pos*MULTIPLIER, r)
     }

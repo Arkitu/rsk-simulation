@@ -1,11 +1,14 @@
+use core::f64;
 use std::cell::RefCell;
 use std::rc::Rc;
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::Arc;
+use nalgebra::{Rotation2, Vector2};
+use rapier2d_f64::math::{Rotation, Vector};
 #[cfg(not(target_arch = "wasm32"))]
 use tokio::sync::Mutex;
 use crate::{game_state::GameState, simulation::Simulation, GC};
-use crate::constants::real::*;
+use crate::constants::*;
 use crate::game_state::{Referee as GSReferee, RefereeTeam, RefereeTeamRobot, RefereeTeamRobots, RefereeTeams, Robot, RobotTasks};
 
 
@@ -45,7 +48,8 @@ pub struct Referee {
     teams: [Team; 2],
     blue_team_positive: bool,
     state: PlayState,
-    pub tasks: TasksType
+    pub tasks: TasksType,
+    with_ball: [usize; 4]
 }
 impl Referee {
     pub fn new(
@@ -70,7 +74,8 @@ impl Referee {
             ],
             blue_team_positive,
             state: PlayState::GameRunning(0),
-            tasks: TasksType::default()
+            tasks: TasksType::default(),
+            with_ball: [0; 4]
         }
     }
     pub fn get_gs_referee(&self, t: usize) -> GSReferee {
@@ -185,23 +190,68 @@ impl GC {
             let gs = self.get_game_state();
             let mut ball = gs.ball.unwrap();
             // Check for goals
-            if ball.y.abs() < GOAL_HEIGHT/2. {
-                if ball.x < -FIELD.0/2. {
+            if ball.y.abs() < real::GOAL_HEIGHT/2. {
+                if ball.x < -real::FIELD.0/2. {
                     self.referee.teams[1].score += 1;
                     self.reset();
-                    ball = DEFAULT_BALL_POS;
+                    ball = real::DEFAULT_BALL_POS;
                     info!(target:"referee", "Green scored!");
-                } else if ball.x > FIELD.0/2. {
+                } else if ball.x > real::FIELD.0/2. {
                     self.referee.teams[0].score += 1;
                     self.reset();
-                    ball = DEFAULT_BALL_POS;
+                    ball = real::DEFAULT_BALL_POS;
                     info!(target:"referee", "Blue scored!");
                 }
             }
             // Check out of field
-            if ball.y.abs() > FIELD.1/2. || ball.x.abs() > FIELD.0/2. {
-                self.teleport_entity(self.simu.ball, Point::new(DOT_POS.0*ball.x.signum(), DOT_POS.1*ball.y.signum()), None);
+            if ball.y.abs() > real::FIELD.1/2. || ball.x.abs() > real::FIELD.0/2. {
+                self.teleport_entity(self.simu.ball, Point::new(real::DOT_POS.0*ball.x.signum(), real::DOT_POS.1*ball.y.signum()), None);
                 info!(target:"referee", "Ball out of field");
+            }
+            // Check with ball
+            for r in Robot::all() {
+                if (self.simu.bodies[self.simu.robots[r as usize]].translation() - self.simu.bodies[self.simu.ball].translation()).norm() > simu::BALL_ABUSE_RADIUS {
+                    *with_ball = self.simu.t;
+                }
+            }
+            for ((with_ball, handle), r) in self.referee.with_ball.iter_mut().zip(self.simu.robots).zip(Robot::all()) {
+                if (self.simu.bodies[handle].translation() - self.simu.bodies[self.simu.ball].translation()).norm() > simu::BALL_ABUSE_RADIUS {
+                    *with_ball = self.simu.t;
+                }
+                if self.simu.t - *with_ball > BALL_ABUSE_TIME {
+                    self.penalize(r, "Ball abuse");
+                }
+            }
+            for (t, r) in self.referee.tasks.blocking_lock().iter_mut().zip(Robot::all()) {
+                if let Some((_, end, spot)) = t.penalty {
+                    if end < self.simu.t {
+                        t.penalty = None;
+                        t.control = (0., 0., 0.);
+                    } else {
+                        // goto DIY
+                        // TODO: maybe make it a copy of the official goto
+                        
+                        let r_pos = &self.simu.bodies[self.simu.robots[r as usize]];
+                        let spot_pos = simu::PENALTY_SPOTS[spot];
+
+                        let spot_ang = if spot < 3 {
+                            f64::consts::FRAC_PI_2
+                        } else {
+                            -f64::consts::FRAC_PI_2
+                        };
+                        let angle = r_pos.rotation().rotation_to(&Rotation::new(spot_ang)).angle();
+                        let ang_d = (angle+f64::consts::PI).sqrt();
+                        let ang_speed = (ang_d).min(simu::ROBOT_ANGULAR_SPEED);
+
+                        
+                        let vec = Rotation2::new(-r_pos.rotation().angle()) * (spot_pos.coords - r_pos.translation());
+                        
+                        let d = vec.norm();
+                        let speed = (d*0.3).min(simu::ROBOT_SPEED);
+                        
+                        t.control = ((vec.normalize().x*speed) as f32, (vec.normalize().y*speed) as f32, (angle.signum()*ang_speed) as f32);
+                    }
+                }
             }
         }
     }
@@ -219,11 +269,11 @@ impl GC {
 
         let r_pos = self.simu.bodies[self.simu.robots[r as usize]].translation();
         
-        let spot = PENALTY_DOTS.into_iter()
+        let spot = simu::PENALTY_SPOTS.into_iter()
             .enumerate()
             .reduce(|acc, (i, p)| {
                 if self.simu.robots.iter().enumerate().filter(|(i,_)| *i != r as usize).any(|(_,r)|
-                    (self.simu.bodies.get(*r).unwrap().translation()-p.coords).norm()>ROBOT_RADIUS
+                    (self.simu.bodies.get(*r).unwrap().translation()-p.coords).norm()>simu::ROBOT_RADIUS
                 ) || tasks.iter().any(|t|
                     match t.penalty {
                         None => false,
@@ -237,7 +287,5 @@ impl GC {
             }).unwrap();
         
         tasks[r as usize].penalty = Some((reason, self.simu.t+PENALTY_DURATION, spot.0));
-
-        
     }
 }
