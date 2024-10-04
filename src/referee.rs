@@ -210,18 +210,22 @@ impl GC {
             }
             // Check with ball
             for r in Robot::all() {
-                if (self.simu.bodies[self.simu.robots[r as usize]].translation() - self.simu.bodies[self.simu.ball].translation()).norm() > simu::BALL_ABUSE_RADIUS {
-                    *with_ball = self.simu.t;
+                if (self.simu.bodies[self.simu.robots[r as usize]].translation() - self.simu.bodies[self.simu.ball].translation()).norm() > simu::BALL_ABUSE_RADIUS
+                || self.referee.tasks.blocking_lock()[r as usize].penalty.is_none() {
+                    self.referee.with_ball[r as usize] = self.simu.t;
                 }
-            }
-            for ((with_ball, handle), r) in self.referee.with_ball.iter_mut().zip(self.simu.robots).zip(Robot::all()) {
-                if (self.simu.bodies[handle].translation() - self.simu.bodies[self.simu.ball].translation()).norm() > simu::BALL_ABUSE_RADIUS {
-                    *with_ball = self.simu.t;
-                }
-                if self.simu.t - *with_ball > BALL_ABUSE_TIME {
+                if self.simu.t - self.referee.with_ball[r as usize] > BALL_ABUSE_TIME {
                     self.penalize(r, "Ball abuse");
                 }
             }
+            // for ((with_ball, handle), r) in self.referee.with_ball.iter_mut().zip(self.simu.robots).zip(Robot::all()) {
+            //     if (self.simu.bodies[handle].translation() - self.simu.bodies[self.simu.ball].translation()).norm() > simu::BALL_ABUSE_RADIUS {
+            //         *with_ball = self.simu.t;
+            //     }
+            //     if self.simu.t - *with_ball > BALL_ABUSE_TIME {
+            //         self.penalize(r, "Ball abuse");
+            //     }
+            // }
             for (t, r) in self.referee.tasks.blocking_lock().iter_mut().zip(Robot::all()) {
                 if let Some((_, end, spot)) = t.penalty {
                     if end < self.simu.t {
@@ -256,6 +260,7 @@ impl GC {
         }
     }
     pub fn penalize(&self, r: Robot, reason: &'static str) {
+        dbg!("penalize");
         #[cfg(not(target_arch = "wasm32"))]
         let mut tasks = self.referee.tasks.blocking_lock();
         #[cfg(target_arch = "wasm32")]
@@ -272,14 +277,14 @@ impl GC {
         let spot = simu::PENALTY_SPOTS.into_iter()
             .enumerate()
             .reduce(|acc, (i, p)| {
-                if self.simu.robots.iter().enumerate().filter(|(i,_)| *i != r as usize).any(|(_,r)|
-                    (self.simu.bodies.get(*r).unwrap().translation()-p.coords).norm()>simu::ROBOT_RADIUS
-                ) || tasks.iter().any(|t|
+                if dbg!(self.simu.robots.iter().enumerate().filter(|(i,_)| *i != r as usize).any(|(_,r)| {
+                    dbg!((self.simu.bodies.get(*r).unwrap().translation()-p.coords).norm(), r);(self.simu.bodies.get(*r).unwrap().translation()-p.coords).norm()<simu::ROBOT_RADIUS
+                })) || dbg!(tasks.iter().any(|t|
                     match t.penalty {
                         None => false,
                         Some((_, _, s)) => s == i
                     }
-                ) || (acc.1.coords-r_pos).norm() < (p.coords-r_pos).norm() {
+                )) || dbg!((acc.1.coords-r_pos).norm() < (p.coords-r_pos).norm()) {
                     return acc;
                 } else {
                     return (i, p);
