@@ -105,12 +105,14 @@ impl Simulation {
                 .can_sleep(false)
         ));
         let mut kicker_joints = kickers.iter().zip(robots.iter()).zip(ROBOT_COLLISION_GROUPS.iter()).map(|((kicker, robot), collision_group)| {
+            let mut col = ColliderBuilder::cuboid(KICKER_THICKNESS, ROBOT_RADIUS)
+                .position(Point::new(-0.77, 0.).into())
+                .restitution(ROBOT_RESTITUTION)
+                .restitution_combine_rule(CoefficientCombineRule::Min)
+                .collision_groups(InteractionGroups::new(KICKER_COLLISION_GROUP, collision_group.complement()))
+                .build();
             colliders.insert_with_parent(
-                ColliderBuilder::cuboid(KICKER_THICKNESS, ROBOT_RADIUS)
-                    .position(Point::new(-9., 0.).into())
-                    .restitution(ROBOT_RESTITUTION)
-                    .restitution_combine_rule(CoefficientCombineRule::Min)
-                    .collision_groups(InteractionGroups::new(KICKER_COLLISION_GROUP, collision_group.complement())),
+                col,
                 *kicker,
                 &mut bodies
             );
@@ -120,7 +122,7 @@ impl Simulation {
                 PrismaticJointBuilder::new(UnitVector::new_normalize(Vector::x()))
                     .local_anchor1(Point::new(ROBOT_RADIUS*0.866, 0.))
                     .local_anchor2(Point::new(0., 0.))
-                    .limits([0.0, KICKER_REACH])
+                    .limits([0.0, 0.3])
                     .motor_position(0., KICKER_STRENGTH, 0.),
                 true
             )

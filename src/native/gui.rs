@@ -106,7 +106,7 @@ fn setup(
             mesh: Mesh2dHandle(meshes.add(Circle {
                 radius: BALL_RADIUS as f32
             })),
-            material: color_materials.add(Color::rgb_u8(247, 107, 49)),
+            material: color_materials.add(Color::srgb_u8(247, 107, 49)),
             transform: Transform::from_xyz(DEFAULT_BALL_POS.x  as f32, DEFAULT_BALL_POS.y  as f32, 1.),
             ..default()
         },
@@ -117,9 +117,9 @@ fn setup(
     let hexagon = Mesh2dHandle(meshes.add(RegularPolygon::new(ROBOT_RADIUS  as f32, 6)));
     let rect = Mesh2dHandle(meshes.add(Rectangle::new(0.01, ROBOT_RADIUS as f32))); //ROBOT_RADIUS as f32 * 0.866, ROBOT_RADIUS as f32 * 0.5, (ROBOT_RADIUS as f32 * 0.866)+(KICKER_THICKNESS as f32), ROBOT_RADIUS as f32 * 0.5)));
 
-    let blue = color_materials.add(Color::rgb_u8(0, 0, 255));
-    let green = color_materials.add(Color::rgb_u8(0, 255, 0));
-    let grey = color_materials.add(Color::rgb(0.5, 0.5, 0.5));
+    let blue = color_materials.add(Color::srgb_u8(0, 0, 255));
+    let green = color_materials.add(Color::srgb_u8(0, 255, 0));
+    let grey = color_materials.add(Color::srgb(0.5, 0.5, 0.5));
     for r in Robot::all() {
         let pos = DEFAULT_ROBOTS_POS[r as usize];
         let material = match r {

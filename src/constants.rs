@@ -1,12 +1,12 @@
 use std::time::Duration;
 
-/// Distances in meters, mass in killograms, origin at the center of field
+// Distances in meters, mass in killograms, origin at the center of field
 
 pub const DT: f64 = 1.0 / 1000.0;
 pub const FRAME_DURATION: usize = (DT * 1000.) as usize; // in ms
 pub const PENALTY_DURATION: usize = 5000 / FRAME_DURATION; // in frames
 pub const MATCH_DURATION: Duration = Duration::from_secs(600);
-pub const BALL_ABUSE_TIME: usize = (0.25/DT) as usize; // in frames
+pub const BALL_ABUSE_TIME: usize = (3.0/DT) as usize; // in frames
 
 
 /// Constants in simulation are multiplied because rapier bugs with small numbers
@@ -136,7 +136,7 @@ pub mod real {
     pub const ROBOT_SPEED: f64 = 0.035*PI*2.*150. / 60.; // Arbitrary. TODO: Mesure it
     pub const ROBOT_ANGULAR_SPEED: f64 = 0.1; // Arbitrary. TODO: Mesure it
 
-    pub const KICKER_THICKNESS: f64 = 0.10; // Arbitrary. TODO: Mesure it
+    pub const KICKER_THICKNESS: f64 = 0.05; // Arbitrary. TODO: Mesure it
     pub const KICKER_REACH: f64 = 0.03; // Arbitrary. TODO: Mesure it
-    pub const KICKER_STRENGTH: f64 = 300.; // Arbitrary. I don't know what unit it is. TODO: Mesure it
+    pub const KICKER_STRENGTH: f64 = 100.; // Arbitrary. I don't know what unit it is. TODO: Mesure it
 }

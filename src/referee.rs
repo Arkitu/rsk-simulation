@@ -193,11 +193,17 @@ impl GC {
             if ball.y.abs() < real::GOAL_HEIGHT/2. {
                 if ball.x < -real::FIELD.0/2. {
                     self.referee.teams[1].score += 1;
+                    for t in self.referee.tasks.blocking_lock().iter_mut() {
+                        t.penalty = None
+                    }
                     self.reset();
                     ball = real::DEFAULT_BALL_POS;
                     info!(target:"referee", "Green scored!");
                 } else if ball.x > real::FIELD.0/2. {
                     self.referee.teams[0].score += 1;
+                    for t in self.referee.tasks.blocking_lock().iter_mut() {
+                        t.penalty = None
+                    }
                     self.reset();
                     ball = real::DEFAULT_BALL_POS;
                     info!(target:"referee", "Blue scored!");
@@ -211,7 +217,7 @@ impl GC {
             // Check with ball
             for r in Robot::all() {
                 if (self.simu.bodies[self.simu.robots[r as usize]].translation() - self.simu.bodies[self.simu.ball].translation()).norm() > simu::BALL_ABUSE_RADIUS
-                || self.referee.tasks.blocking_lock()[r as usize].penalty.is_none() {
+                || self.referee.tasks.blocking_lock()[r as usize].penalty.is_some() {
                     self.referee.with_ball[r as usize] = self.simu.t;
                 }
                 if self.simu.t - self.referee.with_ball[r as usize] > BALL_ABUSE_TIME {
@@ -276,21 +282,28 @@ impl GC {
         
         let spot = simu::PENALTY_SPOTS.into_iter()
             .enumerate()
-            .reduce(|acc, (i, p)| {
-                if dbg!(self.simu.robots.iter().enumerate().filter(|(i,_)| *i != r as usize).any(|(_,r)| {
-                    dbg!((self.simu.bodies.get(*r).unwrap().translation()-p.coords).norm(), r);(self.simu.bodies.get(*r).unwrap().translation()-p.coords).norm()<simu::ROBOT_RADIUS
-                })) || dbg!(tasks.iter().any(|t|
-                    match t.penalty {
-                        None => false,
-                        Some((_, _, s)) => s == i
-                    }
-                )) || dbg!((acc.1.coords-r_pos).norm() < (p.coords-r_pos).norm()) {
-                    return acc;
-                } else {
-                    return (i, p);
-                }
-            }).unwrap();
+            .filter(|(i, p)| {
+                !(
+                    self.simu.robots.iter().enumerate().filter(|(i,_)| *i != r as usize).any(|(_,r)| {
+                        (self.simu.bodies.get(*r).unwrap().translation()-p.coords).norm()<simu::ROBOT_RADIUS
+                    })
+                    || tasks.iter().any(|t|
+                        match t.penalty {
+                            None => false,
+                            Some((_, _, s)) => s == *i
+                        }
+                    )
+                )
+            })
+            .map(|(i, p)| {
+                (i, p, (p.coords-r_pos).norm())
+            })
+            .max_by(|a, b| {
+                b.2.total_cmp(&a.2)
+            })
+            .map(|(i, _, _)| i)
+            .unwrap_or(0);
         
-        tasks[r as usize].penalty = Some((reason, self.simu.t+PENALTY_DURATION, spot.0));
+        tasks[r as usize].penalty = Some((reason, self.simu.t+PENALTY_DURATION, spot));
     }
 }
