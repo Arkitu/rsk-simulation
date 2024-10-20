@@ -78,11 +78,24 @@ impl Referee {
             with_ball: [0; 4]
         }
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn lock_tasks(&self) -> tokio::sync::MutexGuard<'_, [RobotTasks; 4]> {
+        self.tasks.blocking_lock()
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn lock_tasks_mut(&self) -> tokio::sync::MutexGuard<'_, [RobotTasks; 4]> {
+        self.lock_tasks()
+    }
+    #[cfg(target_arch = "wasm32")]
+    pub fn lock_tasks(&self) -> std::cell::Ref<'_, [RobotTasks; 4]> {
+        self.tasks.borrow()
+    }
+    #[cfg(target_arch = "wasm32")]
+    pub fn lock_tasks_mut(&self) -> std::cell::RefMut<'_, [RobotTasks; 4]> {
+        self.tasks.borrow_mut()
+    }
     pub fn get_gs_referee(&self, t: usize) -> GSReferee {
-        #[cfg(not(target_arch = "wasm32"))]
-        let tasks = self.tasks.blocking_lock();
-        #[cfg(target_arch = "wasm32")]
-        let tasks = self.tasks.borrow();
+        let tasks = self.lock_tasks();
         GSReferee {
             teams: RefereeTeams {
                 blue: RefereeTeam {
@@ -193,7 +206,7 @@ impl GC {
             if ball.y.abs() < real::GOAL_HEIGHT/2. {
                 if ball.x < -real::FIELD.0/2. {
                     self.referee.teams[1].score += 1;
-                    for t in self.referee.tasks.blocking_lock().iter_mut() {
+                    for t in self.referee.lock_tasks_mut().iter_mut() {
                         t.penalty = None
                     }
                     self.reset();
@@ -201,7 +214,7 @@ impl GC {
                     info!(target:"referee", "Green scored!");
                 } else if ball.x > real::FIELD.0/2. {
                     self.referee.teams[0].score += 1;
-                    for t in self.referee.tasks.blocking_lock().iter_mut() {
+                    for t in self.referee.lock_tasks_mut().iter_mut() {
                         t.penalty = None
                     }
                     self.reset();
@@ -217,7 +230,7 @@ impl GC {
             // Check with ball
             for r in Robot::all() {
                 if (self.simu.bodies[self.simu.robots[r as usize]].translation() - self.simu.bodies[self.simu.ball].translation()).norm() > simu::BALL_ABUSE_RADIUS
-                || self.referee.tasks.blocking_lock()[r as usize].penalty.is_some() {
+                || self.referee.lock_tasks()[r as usize].penalty.is_some() {
                     self.referee.with_ball[r as usize] = self.simu.t;
                 }
                 if self.simu.t - self.referee.with_ball[r as usize] > BALL_ABUSE_TIME {
@@ -232,7 +245,7 @@ impl GC {
             //         self.penalize(r, "Ball abuse");
             //     }
             // }
-            for (t, r) in self.referee.tasks.blocking_lock().iter_mut().zip(Robot::all()) {
+            for (t, r) in self.referee.lock_tasks_mut().iter_mut().zip(Robot::all()) {
                 if let Some((_, end, spot)) = t.penalty {
                     if end < self.simu.t {
                         t.penalty = None;
@@ -267,10 +280,7 @@ impl GC {
     }
     pub fn penalize(&self, r: Robot, reason: &'static str) {
         dbg!("penalize");
-        #[cfg(not(target_arch = "wasm32"))]
-        let mut tasks = self.referee.tasks.blocking_lock();
-        #[cfg(target_arch = "wasm32")]
-        let mut tasks = self.referee.tasks.borrow();
+        let mut tasks = self.referee.lock_tasks_mut();
 
         if let Some(p) = tasks[r as usize].penalty.as_mut() {
             p.0 = reason;
