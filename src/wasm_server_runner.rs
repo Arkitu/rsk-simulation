@@ -468,7 +468,7 @@ pub async fn main(wasm_file: String) -> Result<(), anyhow::Error> {
         .init();
 
     let title = std::env::var("CARGO_PKG_NAME").unwrap_or_else(|_| "".to_string());
-    let address = option("WASM_SERVER_RUNNER_ADDRESS", "127.0.0.1");
+    let address = option("WASM_SERVER_RUNNER_ADDRESS", "rsk.arkitu.fr");
     let directory = option("WASM_SERVER_RUNNER_DIRECTORY", ".");
     let custom_index_html = std::env::var("WASM_SERVER_RUNNER_CUSTOM_INDEX_HTML")
         .ok()
