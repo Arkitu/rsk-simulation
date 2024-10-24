@@ -26,6 +26,7 @@ pub fn main() {
     let mut url = Url::parse(&location.href().unwrap()).unwrap();
     if url.path().len() <= 1 {
         url.set_path(&("/".to_string() + &Alphanumeric.sample_string(&mut rand::thread_rng(), 5)));
+        info!("{:?}", url);
         location.set_href(url.as_str()).unwrap();
         return
     }
