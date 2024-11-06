@@ -12,7 +12,6 @@ use crate::native;
 
 use crate::control::CtrlRes;
 
-const HOST: &'static str = "127.0.0.1:1234";
 const PUBLISH_RATE: Duration = Duration::from_millis(50);
 
 pub fn main() {
@@ -22,7 +21,7 @@ pub fn main() {
 
     console_log::init_with_level(log::Level::Debug).expect("error initializing log");
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-    let mut location = web_sys::window().unwrap().location();
+    let location = web_sys::window().unwrap().location();
     let mut url = Url::parse(&location.href().unwrap()).unwrap();
     if url.path().len() <= 1 {
         url.set_path(&("/".to_string() + &Alphanumeric.sample_string(&mut rand::thread_rng(), 5)));
@@ -48,7 +47,7 @@ pub struct Control {
 }
 impl Control {
     pub fn new(keys: [String; 2], tasks: Rc<RefCell<[RobotTasks; 4]>>, session_id: &str) -> Self {
-        let mut socket = EventClient::new(&format!("ws://{}/{}", HOST, session_id)).unwrap();
+        let mut socket = EventClient::new(&format!("ws://{}/{}", web_sys::window().unwrap().location().hostname().unwrap(), session_id)).unwrap();
 
         let sid = session_id.to_string();
         socket.set_on_connection(Some(Box::new(move |socket| {

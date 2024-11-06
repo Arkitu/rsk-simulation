@@ -16,9 +16,12 @@ use zeromq::{prelude::*, util::PeerIdentity};
 
 /// Sorry, this part of the code is ugly. If you want me to clean it and document it, ask Arkitu
 pub async fn main() {
+    let address = std::env::var("SERVER_ADDRESS").unwrap_or("127.0.0.1".to_string());
+    let address = &address;
+
     // Host the page and wasm file
     tokio::spawn(wasm_server_runner::main(
-        "./target/wasm32-unknown-unknown/debug/rsk-simulation.wasm".to_string(),
+        std::env::var("WASM_FILE").unwrap_or("./target/wasm32-unknown-unknown/debug/rsk-simulation.wasm".to_string()),
     ));
 
     // session_id --> (sender, receiver)
@@ -37,12 +40,13 @@ pub async fn main() {
     let orphan_sub = state_socket.backend.orphan_sub.clone();
     let pairs: Arc<DashMap<zeromq::util::PeerIdentity, zeromq::util::PeerIdentity>> = state_socket.backend.pairs.clone();
     let subscribers_session = state_socket.backend.subscribers_session.clone();
+    let adr = address.clone();
     tokio::spawn(async move {
         // Pairs represented by their ctrl peer id
         let mut matched_pairs: Vec<PeerIdentity> = Vec::new();
         let mut socket = zeromq::RepSocket::new();
         *socket.backend.orphan_sub.lock().await = orphan_sub;
-        socket.bind("tcp://127.0.0.1:7558").await.unwrap();
+        socket.bind(&format!("tcp://{}:7558", adr)).await.unwrap();
 
         loop {
             let msg = socket.recv().await.unwrap();
@@ -81,8 +85,9 @@ pub async fn main() {
 
     let mut socket = state_socket;
     let (state_socket, mut rcv) = mpsc::unbounded_channel::<(String, Vec<u8>)>();
+    let adr = address.clone();
     tokio::spawn(async move {
-        socket.bind("tcp://127.0.0.1:7557").await.unwrap();
+        socket.bind(&format!("tcp://{}:7557", adr)).await.unwrap();
         loop {
             let (id, msg) = rcv.recv().await.unwrap();
             socket.send_for_id(msg.into(), &id).await.unwrap();
@@ -99,7 +104,7 @@ pub async fn main() {
         }
     });
 
-    let ws = TcpListener::bind(format!("127.0.0.1:{}", WS_PORT)).await.expect("Can't create TcpListener");
+    let ws = TcpListener::bind(format!("{}:{}", address, WS_PORT)).await.expect("Can't create TcpListener");
     while let Ok((stream, addr)) = ws.accept().await {
         // let ctrl_socket = tmq::reply(&context);
         let state_socket = state_socket.clone();

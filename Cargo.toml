@@ -121,7 +121,7 @@ http_server = [
     "dep:asynchronous-codec"
 ]
 
-default = ["native"]
+default = ["http_server"]
 
 [dependencies]
 tracing = "0.1"
