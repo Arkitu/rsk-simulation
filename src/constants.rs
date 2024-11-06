@@ -137,6 +137,6 @@ pub mod real {
     pub const ROBOT_ANGULAR_SPEED: f64 = 0.1; // Arbitrary. TODO: Mesure it
 
     pub const KICKER_THICKNESS: f64 = 0.05; // Arbitrary. TODO: Mesure it
-    pub const KICKER_REACH: f64 = 0.012; // Arbitrary. TODO: Mesure it
+    pub const KICKER_REACH: f64 = 0.012; // Mesured
     pub const KICKER_STRENGTH: f64 = 100.; // Arbitrary. I don't know what unit it is. TODO: Mesure it
 }
