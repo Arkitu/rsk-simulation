@@ -127,7 +127,7 @@ pub mod real {
     pub const BALL_RADIUS: f64 = 0.0213;
     pub const BALL_RESTITUTION: f64 = 0.01; // Arbitrary. TODO: Mesure it
     pub const BALL_MASS: f64 = 0.008;
-    pub const BALL_DAMPING: f64 = 1.;
+    pub const BALL_DAMPING: f64 = 1.; // Arbitrary. TODO: Mesure it
 
     pub const ROBOT_RADIUS: f64 = 0.088; // From the python simulation. TODO: Mesure it
     pub const ROBOT_DAMPING: f64 = 0.; // Arbitrary. TODO: Mesure it
@@ -137,6 +137,6 @@ pub mod real {
     pub const ROBOT_ANGULAR_SPEED: f64 = 0.1; // Arbitrary. TODO: Mesure it
 
     pub const KICKER_THICKNESS: f64 = 0.05; // Arbitrary. TODO: Mesure it
-    pub const KICKER_REACH: f64 = 0.03; // Arbitrary. TODO: Mesure it
+    pub const KICKER_REACH: f64 = 0.012; // Arbitrary. TODO: Mesure it
     pub const KICKER_STRENGTH: f64 = 100.; // Arbitrary. I don't know what unit it is. TODO: Mesure it
 }
