@@ -1,3 +1,5 @@
+#![feature(duration_millis_float)]
+
 mod constants;
 mod game_state;
 mod native;
@@ -14,6 +16,9 @@ mod http;
 #[cfg(feature = "control")]
 mod control;
 
+#[cfg(feature = "native_tui")]
+mod terminal;
+
 #[cfg(feature = "wasm_server_runner")]
 mod wasm_server_runner;
 
@@ -29,6 +34,20 @@ fn main() {
     let gc = native::gc::GC::new("".to_string(), "".to_string(), "".to_string(), "".to_string(), false);
 
     native::gui::BevyGUI::run(gc);
+}
+
+#[cfg(all(feature = "native_tui", not(target_arch = "wasm32")))]
+pub type Control = native::control::Control;
+#[cfg(all(feature = "native_tui", not(target_arch = "wasm32")))]
+pub type GC = native::gc::GC;
+#[cfg(all(feature = "native_tui", not(target_arch = "wasm32")))]
+fn main() {
+    tracing_subscriber::fmt::fmt()
+        .without_time()
+        .init();
+    let gc = native::gc::GC::new("".to_string(), "".to_string(), "".to_string(), "".to_string(), false);
+
+    terminal::gui::TUI::run(gc);
 }
 
 #[cfg(all(feature = "http_client_gc", target_arch = "wasm32"))]
