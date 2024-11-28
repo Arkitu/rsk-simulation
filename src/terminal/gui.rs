@@ -3,18 +3,16 @@ use ratatui::{
     layout::{Layout, Rect},
     style::Color,
     widgets::{
-        canvas::{Canvas, Circle},
+        canvas::{Canvas, Circle, Line},
         Block,
     },
 };
+use core::f64;
 use std::time::{Duration, Instant};
 
 use crate::{
-    constants::{real::FIELD, DT, FRAME_DURATION},
-    GC,
+    constants::{real::{BALL_RADIUS, CARPET, FIELD, ROBOT_RADIUS}, DT, FRAME_DURATION}, game_state::Robot, GC
 };
-
-const FIELD_RATIO: f64 = FIELD.0 / FIELD.1;
 
 pub struct TUI {
     gc: GC,
@@ -32,22 +30,41 @@ impl TUI {
             terminal
                 .draw(|frame| {
                     let area = frame.area();
-                    let zoom = (area.width as f64 / 2. / FIELD.0).min(area.height as f64 / FIELD.1);
+                    let zoom = (area.width as f64 / 2. / CARPET.0).min(area.height as f64 / CARPET.1);
                     frame.render_widget(
                         Canvas::default()
-                            .background_color(Color::Green)
+                            //.background_color(Color::Green)
                             .paint(|ctx| {
                                 let gs = gc.get_game_state();
                                 if let Some(ball) = gs.ball {
                                     ctx.draw(&Circle {
                                         x: ball.x,
                                         y: ball.y,
-                                        radius: 1.,
-                                        color: Color::Indexed(0),
+                                        radius: BALL_RADIUS,
+                                        color: Color::Indexed(202),
                                     });
                                 }
-                            }),
-                        Rect::new(0, 0, (FIELD.0 * zoom) as u16 * 2, (FIELD.1 * zoom) as u16),
+                                for (i, r) in [gs.markers.blue1, gs.markers.blue2, gs.markers.green1, gs.markers.green2].into_iter().enumerate() {
+                                    ctx.draw(&Circle {
+                                        x: r.position.x,
+                                        y: r.position.y,
+                                        radius: ROBOT_RADIUS,
+                                        color: if i < 2 {Color::Blue} else {Color::Green},
+                                    });
+                                    let kicker = gc.get_kicker_pose(Robot::all()[i]);
+                                    ctx.draw(&Line {
+                                        x1: kicker.position.x + (ROBOT_RADIUS*(f64::consts::FRAC_PI_6.cos())),
+                                        y1: kicker.position.y + 0.1,
+                                        x2: kicker.position.x,
+                                        y2: kicker.position.y - 0.1,
+                                        color: Color::Gray
+                                    });
+                                }
+                            })
+                            //.marker()
+                            .x_bounds([-CARPET.0/2., CARPET.0/2.])
+                            .y_bounds([-CARPET.1/2., CARPET.1/2.]),
+                        Rect::new(0, 0, (CARPET.0 * zoom) as u16 * 2, (CARPET.1 * zoom) as u16),
                     );
                 }).unwrap();
             if event::poll(Duration::ZERO).unwrap() {
