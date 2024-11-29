@@ -42,9 +42,6 @@ pub type Control = native::control::Control;
 pub type GC = native::gc::GC;
 #[cfg(all(feature = "native_tui", not(target_arch = "wasm32")))]
 fn main() {
-    tracing_subscriber::fmt::fmt()
-        .without_time()
-        .init();
     let gc = native::gc::GC::new("".to_string(), "".to_string(), "".to_string(), "".to_string(), false);
 
     terminal::gui::TUI::run(gc);

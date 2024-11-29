@@ -53,10 +53,10 @@ impl TUI {
                                     });
                                     let kicker = gc.get_kicker_pose(Robot::all()[i]);
                                     ctx.draw(&Line {
-                                        x1: kicker.position.x + (ROBOT_RADIUS*(f64::consts::FRAC_PI_6.cos())),
-                                        y1: kicker.position.y + 0.1,
-                                        x2: kicker.position.x,
-                                        y2: kicker.position.y - 0.1,
+                                        x1: kicker.position.x + (ROBOT_RADIUS/2.*(f64::consts::FRAC_PI_2+r.orientation).cos()),
+                                        y1: kicker.position.y + (ROBOT_RADIUS/2.*(f64::consts::FRAC_PI_2+r.orientation).sin()),
+                                        x2: kicker.position.x + (ROBOT_RADIUS/2.*(-f64::consts::FRAC_PI_2+r.orientation).cos()),
+                                        y2: kicker.position.y + (ROBOT_RADIUS/2.*(-f64::consts::FRAC_PI_2+r.orientation).sin()),
                                         color: Color::Gray
                                     });
                                 }
