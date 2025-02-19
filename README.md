@@ -1,6 +1,11 @@
 # RSK Simulation
 This is an unofficial simulation for the [RSK / SCT / SSL Junior Robocup league](https://robot-soccer-kit.github.io/) written in Rust. It is still in development. It aims at providing both a visual interface and a fast headless simulation (maybe for AI?).
 
+
+https://github.com/user-attachments/assets/7fbd76fd-ba61-4114-a1ac-f033cb1e1590
+
+*A demo with two of my own strategies*
+
 ## Usage
 You need to install git, rust and rust's targets depending on which mode you want to use. If you encounter a problem at any step please open an issue.
 
